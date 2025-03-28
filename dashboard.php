@@ -58,18 +58,39 @@ if (!isset($_SESSION['admin'])) {
 
       // Bookings per Month
       $bookingsPerMonth = mysqli_query($conn, "
-          SELECT MONTHNAME(check_in_date) AS month, COUNT(*) AS count
+          SELECT MONTH(check_in_date) AS month, COUNT(*) AS count
           FROM bookings
           WHERE status = 'Confirmed'
           GROUP BY MONTH(check_in_date)
-          ORDER BY MONTH(check_in_date)
       ");
 
-      $months = [];
-      $counts = [];
+      // Initialize all 12 months with 0 bookings
+      $months = [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      $counts = array_fill(0, 12, 0);
+
+      // Populate counts with actual data
       while ($row = mysqli_fetch_assoc($bookingsPerMonth)) {
-          $months[] = $row['month'];
-          $counts[] = $row['count'];
+          $monthIndex = $row['month'] - 1; // Convert 1-based month to 0-based index
+          $counts[$monthIndex] = $row['count'];
+      }
+
+      // Popular Room Types
+      $roomTypeData = mysqli_query($conn, "
+          SELECT room_type, COUNT(*) AS count
+          FROM bookings b
+          JOIN rooms r ON b.room_id = r.room_id
+          WHERE b.status = 'Confirmed'
+          GROUP BY room_type
+      ");
+
+      $roomTypes = [];
+      $roomCounts = [];
+      while ($row = mysqli_fetch_assoc($roomTypeData)) {
+          $roomTypes[] = $row['room_type'];
+          $roomCounts[] = $row['count'];
       }
       ?>
 
@@ -130,7 +151,6 @@ if (!isset($_SESSION['admin'])) {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="assets/dashboard-charts.js"></script>
 <script>
     const bookingsData = {
         labels: <?= json_encode($months) ?>,
@@ -140,6 +160,15 @@ if (!isset($_SESSION['admin'])) {
             backgroundColor: 'rgba(54, 162, 235, 0.5)'
         }]
     };
+
+    const roomTypeData = {
+        labels: <?= json_encode($roomTypes) ?>,
+        datasets: [{
+            data: <?= json_encode($roomCounts) ?>,
+            backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1']
+        }]
+    };
 </script>
+<script src="assets/dashboard-charts.js"></script>
 </body>
 </html>

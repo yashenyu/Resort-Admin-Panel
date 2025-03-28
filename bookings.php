@@ -1,4 +1,6 @@
-<?php include 'db_connect.php'; session_start();
+<?php include 'db_connect.php'; 
+
+session_start();
 if (!isset($_SESSION['admin'])) {
   header("Location: login.php");
   exit;

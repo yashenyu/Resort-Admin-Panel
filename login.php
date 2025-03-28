@@ -5,26 +5,28 @@ include 'db_connect.php';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $email = $_POST['email'];
+  $username = $_POST['username'];
   $password = $_POST['password'];
 
-  $query = "SELECT * FROM users WHERE email = '$email' LIMIT 1";
-  $result = mysqli_query($conn, $query);
+  $query = "SELECT * FROM admin WHERE username = ? LIMIT 1";
+  $stmt = mysqli_prepare($conn, $query);
+  mysqli_stmt_bind_param($stmt, "s", $username);
+  mysqli_stmt_execute($stmt);
+  $result = mysqli_stmt_get_result($stmt);
 
   if (mysqli_num_rows($result) === 1) {
-    $user = mysqli_fetch_assoc($result);
+    $admin = mysqli_fetch_assoc($result);
 
-    if (password_verify($password, $user['password_hash'])) {
-      // ✅ Correct password – set session
-      $_SESSION['admin'] = $user['user_id'];
-      $_SESSION['admin_name'] = $user['first_name'] . ' ' . $user['last_name'];
+    if (password_verify($password, $admin['password_hash'])) {
+      $_SESSION['admin_id'] = $admin['admin_id'];
+      $_SESSION['admin_username'] = $admin['username'];
       header("Location: dashboard.php");
       exit;
     } else {
       $error = "Invalid password.";
     }
   } else {
-    $error = "User not found.";
+    $error = "Admin not found.";
   }
 }
 ?>
@@ -58,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <form method="POST">
     <div class="mb-3">
-      <label class="form-label">Email</label>
-      <input type="email" name="email" class="form-control" required>
+      <label class="form-label">Username</label>
+      <input type="text" name="username" class="form-control" required>
     </div>
 
     <div class="mb-3">

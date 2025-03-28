@@ -1,4 +1,7 @@
-<?php include 'db_connect.php'; session_start();
+<?php
+include 'db_connect.php';
+session_start();
+
 if (!isset($_SESSION['admin'])) {
   header("Location: login.php");
   exit;
@@ -70,60 +73,87 @@ while ($row = mysqli_fetch_assoc($visitsData)) {
   <div class="container-fluid p-4">
     <h2>Visitor Analytics</h2>
 
-    <div class="row mt-4">
-      <div class="col-md-6">
+    <!-- NAV TABS -->
+    <ul class="nav nav-tabs mt-4" id="analyticsTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="location-tab" data-bs-toggle="tab" data-bs-target="#location" type="button" role="tab">Top Locations</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="browser-tab" data-bs-toggle="tab" data-bs-target="#browser" type="button" role="tab">Top Browsers</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="platform-tab" data-bs-toggle="tab" data-bs-target="#platform" type="button" role="tab">Top Platforms</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="visits-tab" data-bs-toggle="tab" data-bs-target="#visits" type="button" role="tab">Visits Over Time</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="recent-tab" data-bs-toggle="tab" data-bs-target="#recent" type="button" role="tab">Recent Visits</button>
+      </li>
+    </ul>
+
+    <!-- TAB CONTENT -->
+    <div class="tab-content p-4 bg-white border border-top-0 rounded-bottom" id="analyticsTabsContent">
+
+      <!-- Location Chart -->
+      <div class="tab-pane fade show active" id="location" role="tabpanel">
         <h5>Top Locations</h5>
         <canvas id="locationChart"></canvas>
       </div>
-      <div class="col-md-6">
+
+      <!-- Browser Chart -->
+      <div class="tab-pane fade" id="browser" role="tabpanel">
         <h5>Top Browsers</h5>
         <canvas id="browserChart"></canvas>
       </div>
-    </div>
 
-    <div class="row mt-5">
-      <div class="col-md-6">
+      <!-- Platform Chart -->
+      <div class="tab-pane fade" id="platform" role="tabpanel">
         <h5>Top Platforms (OS)</h5>
         <canvas id="platformChart"></canvas>
       </div>
-      <div class="col-md-6">
+
+      <!-- Visits Over Time -->
+      <div class="tab-pane fade" id="visits" role="tabpanel">
         <h5>Visits Over Time</h5>
         <canvas id="visitsChart"></canvas>
       </div>
-    </div>
 
-    <div class="mt-5">
-      <h5>Recent Visits</h5>
-      <table class="table table-bordered table-sm">
-        <thead class="table-light">
-          <tr>
-            <th>IP</th>
-            <th>Location</th>
-            <th>Browser</th>
-            <th>Platform (OS)</th>
-            <th>Processor</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php while ($row = mysqli_fetch_assoc($recent)): ?>
+      <!-- Recent Visits Table -->
+      <div class="tab-pane fade" id="recent" role="tabpanel">
+        <h5>Recent Visits</h5>
+        <table class="table table-bordered table-sm mt-3">
+          <thead class="table-light">
             <tr>
-              <td><?= $row['ip_address'] ?? 'N/A' ?></td>
-              <td><?= $row['location'] ?? 'N/A' ?></td>
-              <td><?= $row['browser'] ?? 'N/A' ?></td>
-              <td><?= $row['os'] ?? 'N/A' ?></td>
-              <td><?= $row['processor'] ?? 'N/A' ?></td>
-              <td><?= date("M d, Y - h:i A", strtotime($row['timestamp'])) ?></td>
+              <th>IP</th>
+              <th>Location</th>
+              <th>Browser</th>
+              <th>Platform (OS)</th>
+              <th>Processor</th>
+              <th>Time</th>
             </tr>
-          <?php endwhile; ?>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            <?php while ($row = mysqli_fetch_assoc($recent)): ?>
+              <tr>
+                <td><?= $row['ip_address'] ?? 'N/A' ?></td>
+                <td><?= $row['location'] ?? 'N/A' ?></td>
+                <td><?= $row['browser'] ?? 'N/A' ?></td>
+                <td><?= $row['os'] ?? 'N/A' ?></td>
+                <td><?= $row['processor'] ?? 'N/A' ?></td>
+                <td><?= date("M d, Y - h:i A", strtotime($row['timestamp'])) ?></td>
+              </tr>
+            <?php endwhile; ?>
+          </tbody>
+        </table>
+      </div>
+
     </div>
   </div>
 </div>
 
+<!-- CHART RENDERING -->
 <script>
-// Chart.js Render
 new Chart(document.getElementById('locationChart'), {
   type: 'doughnut',
   data: {
@@ -176,5 +206,9 @@ new Chart(document.getElementById('visitsChart'), {
   }
 });
 </script>
+
+<!-- Bootstrap JS for tabs -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
