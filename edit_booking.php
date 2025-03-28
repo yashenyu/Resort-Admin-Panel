@@ -43,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ";
 
     if (mysqli_query($conn, $update)) {
-        // Optional: Log action (replace user_id with admin ID if available)
         mysqli_query($conn, "
           INSERT INTO logs (user_id, action)
           VALUES ({$booking['user_id']}, 'Edited booking #{$booking_id}')

@@ -14,7 +14,6 @@ if (!$booking_id) {
 $update = "UPDATE bookings SET status = 'Cancelled' WHERE booking_id = $booking_id";
 mysqli_query($conn, $update);
 
-// Log it using correct table name `log`
 $user_q = mysqli_query($conn, "SELECT user_id FROM bookings WHERE booking_id = $booking_id");
 $user_id = mysqli_fetch_assoc($user_q)['user_id'];
 

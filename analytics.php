@@ -4,163 +4,33 @@ if (!isset($_SESSION['admin'])) {
   exit;
 }
 
-// Fetch distinct browsers and platforms
-$browsers = mysqli_query($conn, "SELECT DISTINCT browser FROM analytics");
-$platforms = mysqli_query($conn, "SELECT DISTINCT os FROM analytics");
-?>
-
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Analytics</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-<div class="d-flex">
-  <?php include 'includes/navbar.php'; ?>
-
-  <div class="container-fluid p-4">
-
-    <!-- 🔍 FILTER BAR -->
-    <form method="GET" class="row mb-4 g-3">
-      <div class="col-md-3">
-        <label class="form-label">Start Date</label>
-        <input type="date" name="start_date" class="form-control" value="<?= $_GET['start_date'] ?? '' ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">End Date</label>
-        <input type="date" name="end_date" class="form-control" value="<?= $_GET['end_date'] ?? '' ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Browser</label>
-        <select name="browser" class="form-select">
-          <option value="">All</option>
-          <?php while ($row = mysqli_fetch_assoc($browsers)): ?>
-            <option value="<?= $row['browser'] ?>" <?= ($_GET['browser'] ?? '') === $row['browser'] ? 'selected' : '' ?>><?= $row['browser'] ?></option>
-          <?php endwhile; ?>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Platform (OS)</label>
-        <select name="os" class="form-select">
-          <option value="">All</option>
-          <?php while ($row = mysqli_fetch_assoc($platforms)): ?>
-            <option value="<?= $row['os'] ?>" <?= ($_GET['os'] ?? '') === $row['os'] ? 'selected' : '' ?>><?= $row['os'] ?></option>
-          <?php endwhile; ?>
-        </select>
-      </div>
-      <div class="col-12 text-end">
-        <button type="submit" class="btn btn-primary mt-3">Apply Filters</button>
-      </div>
-    </form>
-
-    <h2>Visitor Analytics</h2>
-
-    <!-- CHARTS -->
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <h5>Top Locations</h5>
-        <canvas id="locationChart"></canvas>
-      </div>
-      <div class="col-md-6">
-        <h5>Top Browsers</h5>
-        <canvas id="browserChart"></canvas>
-      </div>
-    </div>
-
-    <div class="row mt-5">
-      <div class="col-md-6">
-        <h5>Top Platforms (OS)</h5>
-        <canvas id="platformChart"></canvas>
-      </div>
-      <div class="col-md-6">
-        <h5>Visits Over Time</h5>
-        <canvas id="visitsChart"></canvas>
-      </div>
-    </div>
-
-    <!-- RECENT VISITS TABLE -->
-    <div class="mt-5">
-      <h5>Recent Visits</h5>
-      <table class="table table-bordered table-sm">
-        <thead class="table-light">
-          <tr>
-            <th>IP</th>
-            <th>Location</th>
-            <th>Browser</th>
-            <th>Platform (OS)</th>
-            <th>Processor</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php
-          // 🧠 Build WHERE clause from filters
-          $where = [];
-          if (!empty($_GET['start_date']) && !empty($_GET['end_date'])) {
-            $start = $_GET['start_date'];
-            $end = $_GET['end_date'];
-            $where[] = "DATE(timestamp) BETWEEN '$start' AND '$end'";
-          }
-          if (!empty($_GET['browser'])) {
-            $browser = $_GET['browser'];
-            $where[] = "browser = '$browser'";
-          }
-          if (!empty($_GET['os'])) {
-            $os = $_GET['os'];
-            $where[] = "os = '$os'";
-          }
-          $whereSQL = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
-
-          // 📥 Fetch recent visits
-          $recent = mysqli_query($conn, "SELECT * FROM analytics $whereSQL ORDER BY timestamp DESC LIMIT 20");
-          while ($row = mysqli_fetch_assoc($recent)) {
-            echo "<tr>
-                    <td>" . ($row['ip_address'] ?? 'N/A') . "</td>
-                    <td>" . ($row['location'] ?? 'N/A') . "</td>
-                    <td>" . ($row['browser'] ?? 'N/A') . "</td>
-                    <td>" . ($row['os'] ?? 'N/A') . "</td>
-                    <td>" . ($row['processor'] ?? 'N/A') . "</td>
-                    <td>" . date("M d, Y - h:i A", strtotime($row['timestamp'])) . "</td>
-                  </tr>";
-          }
-          ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- 📊 Chart JS Script -->
-<script>
-<?php
-// 🧩 Chart Queries using filters
+// Fetch data for charts and recent visits
 $locationData = mysqli_query($conn, "
   SELECT location, COUNT(*) AS count FROM analytics
-  $whereSQL
   GROUP BY location ORDER BY count DESC LIMIT 5
 ");
 
 $browserData = mysqli_query($conn, "
   SELECT browser, COUNT(*) AS count FROM analytics
-  $whereSQL
   GROUP BY browser ORDER BY count DESC
 ");
 
 $platformData = mysqli_query($conn, "
   SELECT os, COUNT(*) AS count FROM analytics
-  $whereSQL
   GROUP BY os ORDER BY count DESC
 ");
 
 $visitsData = mysqli_query($conn, "
   SELECT DATE(timestamp) as day, COUNT(*) as total FROM analytics
-  $whereSQL
   GROUP BY day ORDER BY day ASC
 ");
 
-// Arrays
+$recent = mysqli_query($conn, "
+  SELECT * FROM analytics
+  ORDER BY timestamp DESC LIMIT 20
+");
+
+// Prepare data for charts
 $locationLabels = $locationCounts = [];
 while ($row = mysqli_fetch_assoc($locationData)) {
   $locationLabels[] = $row['location'] ?: 'Unknown';
@@ -186,6 +56,73 @@ while ($row = mysqli_fetch_assoc($visitsData)) {
 }
 ?>
 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Analytics</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="d-flex">
+  <?php include 'includes/navbar.php'; ?>
+
+  <div class="container-fluid p-4">
+    <h2>Visitor Analytics</h2>
+
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <h5>Top Locations</h5>
+        <canvas id="locationChart"></canvas>
+      </div>
+      <div class="col-md-6">
+        <h5>Top Browsers</h5>
+        <canvas id="browserChart"></canvas>
+      </div>
+    </div>
+
+    <div class="row mt-5">
+      <div class="col-md-6">
+        <h5>Top Platforms (OS)</h5>
+        <canvas id="platformChart"></canvas>
+      </div>
+      <div class="col-md-6">
+        <h5>Visits Over Time</h5>
+        <canvas id="visitsChart"></canvas>
+      </div>
+    </div>
+
+    <div class="mt-5">
+      <h5>Recent Visits</h5>
+      <table class="table table-bordered table-sm">
+        <thead class="table-light">
+          <tr>
+            <th>IP</th>
+            <th>Location</th>
+            <th>Browser</th>
+            <th>Platform (OS)</th>
+            <th>Processor</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php while ($row = mysqli_fetch_assoc($recent)): ?>
+            <tr>
+              <td><?= $row['ip_address'] ?? 'N/A' ?></td>
+              <td><?= $row['location'] ?? 'N/A' ?></td>
+              <td><?= $row['browser'] ?? 'N/A' ?></td>
+              <td><?= $row['os'] ?? 'N/A' ?></td>
+              <td><?= $row['processor'] ?? 'N/A' ?></td>
+              <td><?= date("M d, Y - h:i A", strtotime($row['timestamp'])) ?></td>
+            </tr>
+          <?php endwhile; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
 // Chart.js Render
 new Chart(document.getElementById('locationChart'), {
   type: 'doughnut',
