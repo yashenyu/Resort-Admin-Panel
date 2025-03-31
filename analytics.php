@@ -951,33 +951,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Geographic Distribution Chart
   const locationCtx = document.getElementById('locationChart').getContext('2d');
   new Chart(locationCtx, {
-    type: 'doughnut',
+    type: 'bar',
     data: {
-      labels: <?php echo json_encode(array_map(function($label, $percentage) {
-        return $label . ' (' . $percentage . '%)';
-      }, $locationLabels, $locationPercentages)); ?>,
+      labels: <?php echo json_encode($locationLabels); ?>,
       datasets: [{
+        label: 'Visitors by Location',
         data: <?php echo json_encode($locationData); ?>,
-        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636', '#F6F8FA', '#D73A49', '#0366D6'],
+        backgroundColor: '#F78166',
         borderColor: 'transparent',
         borderRadius: 4,
-        hoverOffset: 4
+        barPercentage: 0.6,
+        categoryPercentage: 0.8
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '70%',
+      indexAxis: 'y',  // Make it a horizontal bar chart
       plugins: {
         legend: { 
-          position: 'bottom',
-          labels: { 
-            color: '#e0e0e0',
-            font: { size: 11, weight: '500' },
-            padding: 20,
-            usePointStyle: true,
-            pointStyle: 'circle'
-          }
+          display: false
         },
         tooltip: {
           backgroundColor: 'rgba(26, 29, 33, 0.9)',
@@ -997,6 +990,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(201,209,217,0.1)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#8b949e',
+            font: { size: 11, weight: '500' }
+          }
+        },
+        y: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' }
+          }
+        }
       }
     }
   });
@@ -1004,33 +1018,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // Processor Types Chart
   const processorCtx = document.getElementById('processorChart').getContext('2d');
   new Chart(processorCtx, {
-    type: 'doughnut',
+    type: 'bar',
     data: {
-      labels: <?php echo json_encode(array_map(function($label, $percentage) {
-        return $label . ' (' . $percentage . '%)';
-      }, $processorLabels, $processorPercentages)); ?>,
+      labels: <?php echo json_encode($processorLabels); ?>,
       datasets: [{
+        label: 'Visitors by Processor',
         data: <?php echo json_encode($processorData); ?>,
-        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636'],
+        backgroundColor: '#58A6FF',
         borderColor: 'transparent',
         borderRadius: 4,
-        hoverOffset: 4
+        barPercentage: 0.6,
+        categoryPercentage: 0.8
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '70%',
       plugins: {
         legend: { 
-          position: 'bottom',
-          labels: { 
-            color: '#e0e0e0',
-            font: { size: 11, weight: '500' },
-            padding: 20,
-            usePointStyle: true,
-            pointStyle: 'circle'
-          }
+          display: false
         },
         tooltip: {
           backgroundColor: 'rgba(26, 29, 33, 0.9)',
@@ -1048,6 +1054,29 @@ document.addEventListener('DOMContentLoaded', () => {
               const percentage = <?php echo json_encode($processorPercentages); ?>[context.dataIndex];
               return `${value} visitors (${percentage}%)`;
             }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(201,209,217,0.1)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#8b949e',
+            font: { size: 11, weight: '500' }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(201,209,217,0.1)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#8b949e',
+            font: { size: 11, weight: '500' }
           }
         }
       }
