@@ -7,366 +7,300 @@ if (!isset($_SESSION['admin'])) {
   exit;
 }
 
-// Fetch data for charts and recent visits from the analytics table
-$locationData = mysqli_query($conn, "
-  SELECT location, COUNT(*) AS count FROM analytics
-  GROUP BY location ORDER BY count DESC LIMIT 5
-");
+$page_title = "Analytics";
 
-$browserData = mysqli_query($conn, "
-  SELECT browser, COUNT(*) AS count FROM analytics
-  GROUP BY browser ORDER BY count DESC
-");
+// SECTION 1: Booking Trends & Regression Forecast
+$trendQuery = "SELECT DATE_FORMAT(check_in_date, '%Y-%m') AS month, COUNT(*) AS totalBookings 
+               FROM bookings 
+               GROUP BY month 
+               ORDER BY month ASC";
+$trendResult = mysqli_query($conn, $trendQuery);
 
-$platformData = mysqli_query($conn, "
-  SELECT os, COUNT(*) AS count FROM analytics
-  GROUP BY os ORDER BY count DESC
-");
+$bookingMonths = [];
+$bookingCounts = [];
 
-$visitsData = mysqli_query($conn, "
-  SELECT DATE(timestamp) as day, COUNT(*) as total FROM analytics
-  GROUP BY day ORDER BY day ASC
-");
-
-$recent = mysqli_query($conn, "
-  SELECT * FROM analytics
-  ORDER BY timestamp DESC LIMIT 20
-");
-
-// Prepare data for analytics charts
-$locationLabels = $locationCounts = [];
-while ($row = mysqli_fetch_assoc($locationData)) {
-  $locationLabels[] = $row['location'] ?: 'Unknown';
-  $locationCounts[] = $row['count'];
+if ($trendResult) {
+    while ($row = mysqli_fetch_assoc($trendResult)) {
+        $bookingMonths[] = $row['month'];
+        $bookingCounts[] = (int)$row['totalBookings'];
+    }
 }
 
-$browserLabels = $browserCounts = [];
-while ($row = mysqli_fetch_assoc($browserData)) {
-  $browserLabels[] = $row['browser'] ?: 'Unknown';
-  $browserCounts[] = $row['count'];
+// Fallback sample data
+if (empty($bookingMonths)) {
+    $bookingMonths = ["2024-01", "2024-02", "2024-03"];
+    $bookingCounts = [5, 8, 12];
 }
 
-$platformLabels = $platformCounts = [];
-while ($row = mysqli_fetch_assoc($platformData)) {
-  $platformLabels[] = $row['os'] ?: 'Unknown';
-  $platformCounts[] = $row['count'];
+// Booking Classification
+$classQuery = "SELECT status, COUNT(*) AS total 
+               FROM bookings 
+               WHERE status IN ('Cancelled', 'Completed') 
+               GROUP BY status";
+$classResult = mysqli_query($conn, $classQuery);
+$classLabels = [];
+$classCounts = [];
+while ($row = mysqli_fetch_assoc($classResult)) {
+  $classLabels[] = $row['status'];
+  $classCounts[] = $row['total'];
 }
 
-$visitDates = $visitCounts = [];
-while ($row = mysqli_fetch_assoc($visitsData)) {
-  $visitDates[] = $row['day'];
-  $visitCounts[] = $row['total'];
+// Guest Segmentation
+$clusterQuery = "SELECT CASE 
+                    WHEN guests = 1 THEN 'Solo Travelers'
+                    WHEN guests IN (2,3) THEN 'Couples/Small Groups'
+                    ELSE 'Family Travelers'
+                 END AS segment, COUNT(*) AS total
+                 FROM bookings 
+                 GROUP BY segment";
+$clusterResult = mysqli_query($conn, $clusterQuery);
+$segmentLabels = [];
+$segmentCounts = [];
+while ($row = mysqli_fetch_assoc($clusterResult)) {
+  $segmentLabels[] = $row['segment'];
+  $segmentCounts[] = $row['total'];
 }
 
-// Fetch bookings per month for the time series regression analysis
-$bookingsTrendData = mysqli_query($conn, "
-  SELECT DATE_FORMAT(check_in_date, '%Y-%m') as month, COUNT(*) as totalBookings
-  FROM bookings
-  GROUP BY month
-  ORDER BY month ASC
-");
+// Add libraries
+$extra_js = '
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
+';
 
-$bookingMonths = $bookingCounts = [];
-while ($row = mysqli_fetch_assoc($bookingsTrendData)) {
-  $bookingMonths[] = $row['month'];
-  $bookingCounts[] = $row['totalBookings'];
-}
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Analytics</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Font Awesome for Icons -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <!-- Main Dark Theme (if you have it) -->
-  <link rel="stylesheet" href="css/modern-theme.css">
-  <!-- Your new separate CSS for analytics -->
-  <link rel="stylesheet" href="css/analytics.css">
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Regression-js library for polynomial regression -->
-  <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
-</head>
-<body>
-<div class="d-flex">
-  <?php include 'includes/navbar.php'; ?>
 
-  <div class="content">
-    <div class="container-fluid p-4">
-      <h2 class="mb-4 text-light">
-        <i class="fas fa-chart-pie"></i> Visitor & Booking Analytics
-      </h2>
+<h2 class="mb-4">Analytics</h2>
 
-      <!-- Nav Tabs -->
-      <ul class="nav nav-tabs" id="analyticsTabs" role="tablist">
-        <li class="nav-item">
-          <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#location" type="button">
-            <i class="fas fa-map-marker-alt"></i> Top Locations
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#browser" type="button">
-            <i class="fas fa-globe"></i> Top Browsers
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#platform" type="button">
-            <i class="fas fa-desktop"></i> Top Platforms
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#visits" type="button">
-            <i class="fas fa-chart-line"></i> Visits Over Time
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#trend" type="button">
-            <i class="fas fa-chart-area"></i> Bookings Trend
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#recent" type="button">
-            <i class="fas fa-clock"></i> Recent Visits
-          </button>
-        </li>
-      </ul>
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs" id="analyticsTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend" type="button" role="tab">
+      Booking Trends
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="classification-tab" data-bs-toggle="tab" data-bs-target="#classification" type="button" role="tab">
+      Booking Classification
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="segmentation-tab" data-bs-toggle="tab" data-bs-target="#segmentation" type="button" role="tab">
+      Guest Segmentation
+    </button>
+  </li>
+</ul>
 
-      <!-- Dark tab content container -->
-      <div class="tab-content tab-content-dark" id="analyticsTabsContent">
-        <!-- Top Locations -->
-        <div class="tab-pane fade show active" id="location">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Top Locations</h5>
-              <div class="chart-container">
-                <canvas id="locationChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
+<!-- Tab Content -->
+<div class="tab-content" id="analyticsTabContent">
+  <!-- Booking Trends -->
+  <div class="tab-pane fade show active" id="trend" role="tabpanel">
+    <div class="chart-card">
+      <div class="chart-card-header"><h5 class="chart-card-title">Booking Trends & Forecast</h5></div>
+      <div class="chart-container" style="position: relative; height: 400px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
 
-        <!-- Top Browsers -->
-        <div class="tab-pane fade" id="browser">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Top Browsers</h5>
-              <div class="chart-container">
-                <canvas id="browserChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
+  <!-- Booking Classification -->
+  <div class="tab-pane fade" id="classification" role="tabpanel">
+    <div class="chart-card">
+      <div class="chart-card-header"><h5 class="chart-card-title">Booking Outcomes</h5></div>
+      <div class="chart-container">
+        <canvas id="classificationChart"></canvas>
+      </div>
+    </div>
+  </div>
 
-        <!-- Top Platforms -->
-        <div class="tab-pane fade" id="platform">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Top Platforms (OS)</h5>
-              <div class="chart-container">
-                <canvas id="platformChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
+  <!-- Guest Segmentation -->
+  <div class="tab-pane fade" id="segmentation" role="tabpanel">
+    <div class="chart-card">
+      <div class="chart-card-header"><h5 class="chart-card-title">Guest Segments</h5></div>
+      <div class="chart-container">
+        <canvas id="segmentationChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
 
-        <!-- Visits Over Time -->
-        <div class="tab-pane fade" id="visits">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Visits Over Time</h5>
-              <div class="chart-container">
-                <canvas id="visitsChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Bookings Trend (Time Series Regression) -->
-        <div class="tab-pane fade" id="trend">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title mb-3">Bookings Trend (Time Series Regression)</h5>
-              <div class="chart-container">
-                <canvas id="regressionChart"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Recent Visits -->
-        <div class="tab-pane fade" id="recent">
-          <div class="card mt-3 chart-card">
-            <div class="card-body">
-              <h5 class="card-title">Recent Visits</h5>
-              <div class="table-responsive mt-3">
-                <table class="table table-sm table-bordered align-middle table-dark">
-                  <thead class="table-light">
-                    <tr>
-                      <th>IP</th>
-                      <th>Location</th>
-                      <th>Browser</th>
-                      <th>Platform (OS)</th>
-                      <th>Processor</th>
-                      <th>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php while ($row = mysqli_fetch_assoc($recent)): ?>
-                      <tr>
-                        <td><?= $row['ip_address'] ?? 'N/A' ?></td>
-                        <td><?= $row['location'] ?? 'N/A' ?></td>
-                        <td><?= $row['browser'] ?? 'N/A' ?></td>
-                        <td><?= $row['os'] ?? 'N/A' ?></td>
-                        <td><?= $row['processor'] ?? 'N/A' ?></td>
-                        <td><?= date("M d, Y - h:i A", strtotime($row['timestamp'])) ?></td>
-                      </tr>
-                    <?php endwhile; ?>
-                  </tbody>
-                </table>
-              </div> <!-- /.table-responsive -->
-            </div> <!-- /.card-body -->
-          </div> <!-- /.card -->
-        </div>
-      </div> <!-- /.tab-content-dark -->
-    </div> <!-- /.container-fluid -->
-  </div> <!-- /.content -->
-</div> <!-- /.d-flex -->
+<style>
+.chart-card {
+  background: #1a1d21;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.chart-card-title {
+  color: #e0e0e0;
+  margin: 0;
+}
+.chart-container {
+  background: #1a1d21;
+  border-radius: 8px;
+  padding: 10px;
+}
+.nav-tabs .nav-link.active {
+  border-color: #F78166;
+  color: #F78166;
+}
+</style>
 
 <script>
-// Dark theme options for Chart.js
-const chartOptions = {
-  plugins: {
-    legend: {
-      labels: { color: '#e0e0e0' }
-    },
-    tooltip: {
-      backgroundColor: '#333',
-      titleColor: '#e0e0e0',
-      bodyColor: '#e0e0e0',
-      borderColor: '#444',
-      borderWidth: 1
+document.addEventListener('DOMContentLoaded', function () {
+  const months = <?php echo json_encode($bookingMonths); ?>;
+  const bookings = <?php echo json_encode($bookingCounts); ?>;
+
+  let forecastMonths = [...months];
+  let last = months[months.length - 1].split('-');
+  let year = parseInt(last[0]);
+  let month = parseInt(last[1]);
+
+  // Add 3 forecast months
+  for (let i = 0; i < 3; i++) {
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
     }
-  },
-  scales: {
-    x: {
-      ticks: { color: '#e0e0e0' },
-      grid: { color: '#333' }
+    forecastMonths.push(`${year}-${month.toString().padStart(2, '0')}`);
+  }
+
+  // Linear regression
+  let regressionData = months.map((_, i) => [i, bookings[i]]);
+  let result = regression.linear(regressionData);
+  let regressionLine = forecastMonths.map((_, i) => Math.round(result.predict(i)[1]));
+
+  // Forecast values: null for actual, predictions for forecast
+  let forecastValues = regressionLine.map((val, idx) => idx < months.length ? null : val);
+
+  // Booking Trend Chart
+  new Chart(document.getElementById('trendChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: forecastMonths,
+      datasets: [
+        {
+          label: 'Actual Bookings',
+          data: bookings,
+          borderColor: '#F78166',
+          backgroundColor: 'rgba(247,129,102,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4
+        },
+        {
+          label: 'Trend Line',
+          data: regressionLine,
+          borderColor: '#7EE787',
+          fill: false,
+          tension: 0,
+          borderDash: [5, 5],
+          pointRadius: 0
+        },
+        {
+          label: 'Forecast',
+          data: forecastValues,
+          borderColor: '#58A6FF',
+          backgroundColor: 'rgba(88,166,255,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4
+        }
+      ]
     },
-    y: {
-      ticks: { color: '#e0e0e0' },
-      grid: { color: '#333' }
-    }
-  }
-};
-
-// 1. Top Locations Chart
-new Chart(document.getElementById('locationChart'), {
-  type: 'doughnut',
-  data: {
-    labels: <?= json_encode($locationLabels) ?>,
-    datasets: [{
-      data: <?= json_encode($locationCounts) ?>,
-      backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1']
-    }]
-  },
-  options: chartOptions
-});
-
-// 2. Top Browsers Chart
-new Chart(document.getElementById('browserChart'), {
-  type: 'bar',
-  data: {
-    labels: <?= json_encode($browserLabels) ?>,
-    datasets: [{
-      label: 'Visits',
-      data: <?= json_encode($browserCounts) ?>,
-      backgroundColor: '#0dcaf0'
-    }]
-  },
-  options: chartOptions
-});
-
-// 3. Top Platforms Chart
-new Chart(document.getElementById('platformChart'), {
-  type: 'bar',
-  data: {
-    labels: <?= json_encode($platformLabels) ?>,
-    datasets: [{
-      label: 'Visits',
-      data: <?= json_encode($platformCounts) ?>,
-      backgroundColor: '#fd7e14'
-    }]
-  },
-  options: {
-    ...chartOptions,
-    indexAxis: 'y'
-  }
-});
-
-// 4. Visits Over Time
-new Chart(document.getElementById('visitsChart'), {
-  type: 'line',
-  data: {
-    labels: <?= json_encode($visitDates) ?>,
-    datasets: [{
-      label: 'Visits per Day',
-      data: <?= json_encode($visitCounts) ?>,
-      borderColor: '#0d6efd',
-      fill: true,
-      backgroundColor: 'rgba(13, 110, 253, 0.1)'
-    }]
-  },
-  options: chartOptions
-});
-
-// 5. Bookings Trend Regression
-var bookingMonths = <?= json_encode($bookingMonths) ?>;
-var bookingCounts = <?= json_encode($bookingCounts) ?>;
-
-var dataPointsBookings = bookingCounts.map((count, i) => [i, count]);
-var resultBookings = regression.polynomial(dataPointsBookings, { order: 2 });
-var regressionYBookings = resultBookings.points.map(point => point[1]);
-
-new Chart(document.getElementById('regressionChart'), {
-  type: 'line',
-  data: {
-    labels: bookingMonths,
-    datasets: [
-      {
-        label: 'Actual Bookings',
-        data: bookingCounts,
-        borderColor: '#20c997',
-        backgroundColor: 'rgba(32, 201, 151, 0.1)',
-        fill: true,
-        pointRadius: 3
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: '#e0e0e0' }
+        },
+        annotation: {
+          annotations: {
+            line1: {
+              type: 'line',
+              xMin: months.length - 0.5,
+              xMax: months.length - 0.5,
+              borderColor: 'rgba(255,255,255,0.3)',
+              borderDash: [6, 6],
+              borderWidth: 2,
+              label: {
+                content: 'Forecast Start',
+                enabled: true,
+                position: 'top',
+                backgroundColor: '#000',
+                color: '#fff',
+                padding: 4
+              }
+            }
+          }
+        }
       },
-      {
-        label: 'Quadratic Regression',
-        data: regressionYBookings,
-        borderColor: '#f8f9fa',
-        borderDash: [5, 5],
-        fill: false,
-        pointRadius: 0
+      scales: {
+        x: {
+          ticks: { color: '#c9d1d9' },
+          grid: { color: 'rgba(201,209,217,0.1)' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#c9d1d9',
+            precision: 0,
+            callback: value => Number.isInteger(value) ? value : ''
+          },
+          grid: { color: 'rgba(201,209,217,0.1)' }
+        }
       }
-    ]
-  },
-  options: {
-    ...chartOptions,
-    plugins: {
-      legend: { labels: { boxWidth: 12 } },
-      tooltip: { mode: 'index', intersect: false }
-    },
-    scales: {
-      x: { ticks: { autoSkip: true, maxTicksLimit: 14 } },
-      y: { beginAtZero: true }
     }
-  }
+  });
+
+  // Classification Chart
+  new Chart(document.getElementById('classificationChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: <?php echo json_encode($classLabels); ?>,
+      datasets: [{
+        data: <?php echo json_encode($classCounts); ?>,
+        backgroundColor: ['#F78166', '#58A6FF'],
+        borderColor: 'transparent'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#e0e0e0' }
+        }
+      }
+    }
+  });
+
+  // Segmentation Chart
+  new Chart(document.getElementById('segmentationChart').getContext('2d'), {
+    type: 'pie',
+    data: {
+      labels: <?php echo json_encode($segmentLabels); ?>,
+      datasets: [{
+        data: <?php echo json_encode($segmentCounts); ?>,
+        backgroundColor: ['#F78166', '#58A6FF', '#8B949E'],
+        borderColor: 'transparent'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#e0e0e0' }
+        }
+      }
+    }
+  });
 });
 </script>
 
-<!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>

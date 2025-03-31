@@ -5,212 +5,201 @@ if (!isset($_SESSION['admin'])) {
   header("Location: login.php");
   exit;
 }
+$page_title = "Manage Rooms";
+
+// Fetch all rooms with their current status
+$roomsQuery = "
+    SELECT r.*, 
+           COALESCE(b.current_bookings, 0) as current_bookings
+    FROM rooms r
+    LEFT JOIN (
+        SELECT room_id, COUNT(*) as current_bookings 
+        FROM bookings 
+        WHERE status = 'Confirmed' 
+        AND check_out_date >= CURDATE()
+        GROUP BY room_id
+    ) b ON r.room_id = b.room_id
+    ORDER BY r.room_type, r.room_number";
+
+$rooms = mysqli_query($conn, $roomsQuery);
+
+// Group rooms by type
+$roomsByType = [];
+while($room = mysqli_fetch_assoc($rooms)) {
+    if (!isset($roomsByType[$room['room_type']])) {
+        $roomsByType[$room['room_type']] = [
+            'rooms' => [],
+            'total' => 0,
+            'available' => 0
+        ];
+    }
+    $roomsByType[$room['room_type']]['rooms'][] = $room;
+    $roomsByType[$room['room_type']]['total']++;
+    if ($room['status'] == 'Available') {
+        $roomsByType[$room['room_type']]['available']++;
+    }
+}
+
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Manage Rooms</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Font Awesome for Icons -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <!-- Your Custom Dark Theme CSS -->
-  <link href="css/modern-theme.css" rel="stylesheet">
-  <!-- DataTables CSS -->
-  <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
 
-  <style>
-    /* Ensure the main content is positioned to the right of your fixed sidebar (250px) */
-    .content {
-      margin-left: 250px !important;
-      width: calc(100% - 250px) !important;
-      min-height: 100vh;
-    }
+<!-- Page Title -->
+<div class="page-title mb-4">
+    <h2 class="mb-2">Rooms</h2>
+</div>
 
-    /* Make container-fluid truly full width and reduce its padding */
-    .container-fluid {
-      width: 100% !important;
-      max-width: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    .container-fluid.p-4 {
-      padding: 1rem !important; /* Adjust as needed */
-    }
-
-    /* DataTables adjustments */
-    table.dataTable {
-      width: 100% !important;
-    }
-    .table-responsive {
-      padding: 0.5rem !important; /* Adjust as needed */
-    }
-
-    /* Increase vertical spacing around the DataTables search bar and "Show entries" dropdown */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-      margin-top: 1.5rem !important;
-      margin-bottom: 1.5rem !important;
-    }
-
-    /* Filters layout */
-    .filters .row {
-      row-gap: 1rem; /* Gap between filter rows */
-    }
-    .filters label {
-      margin-bottom: 0.5rem;
-      display: block;
-    }
-  </style>
-</head>
-<body>
-<div class="d-flex">
-  <!-- Sidebar (ensure your navbar.php outputs a fixed-width sidebar) -->
-  <?php include 'includes/navbar.php'; ?>
-
-  <!-- Main Content Area -->
-  <div class="content">
-    <div class="container-fluid p-4">
-      <h2 class="mb-4 text-light"><i class="fas fa-bed"></i> Manage Rooms</h2>
-
-      <?php if (isset($_GET['updated'])): ?>
-        <div class="alert alert-success">Room updated successfully.</div>
-      <?php endif; ?>
-
-      <!-- Filters Section -->
-      <div class="filters mb-4">
-        <div class="row g-3">
-          <!-- Room Type Filter -->
-          <div class="col-md-3">
-            <label for="filterRoomType" class="form-label">Room Type</label>
-            <select id="filterRoomType" class="form-select">
-              <option value="">All</option>
-              <?php
-              $roomTypes = mysqli_query($conn, "SELECT DISTINCT room_type FROM rooms");
-              while ($room = mysqli_fetch_assoc($roomTypes)) {
-                echo "<option value='{$room['room_type']}'>{$room['room_type']}</option>";
-              }
-              ?>
-            </select>
-          </div>
-
-          <!-- Status Filter -->
-          <div class="col-md-3">
-            <label for="filterStatus" class="form-label">Status</label>
-            <select id="filterStatus" class="form-select">
-              <option value="">All</option>
-              <option value="Available">Available</option>
-              <option value="Booked">Booked</option>
-              <option value="Maintenance">Maintenance</option>
-            </select>
-          </div>
-
-          <!-- Rate Range Filter -->
-          <div class="col-md-4">
-            <label for="filterRateRange" class="form-label">Rate Range (₱)</label>
-            <div class="d-flex">
-              <input type="number" id="filterMinRate" class="form-control me-2" placeholder="Min">
-              <input type="number" id="filterMaxRate" class="form-control" placeholder="Max">
+<?php foreach($roomsByType as $roomType => $data): ?>
+    <!-- Room Type Section -->
+    <div class="room-type-section mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h3 class="text-light h4 mb-1"><?php echo htmlspecialchars($roomType); ?></h3>
+                <div class="text-light opacity-75 small">
+                    <i class="fas fa-bed me-1"></i>
+                    <?php echo $data['available']; ?> of <?php echo $data['total']; ?> rooms available
+                    (<?php echo round(($data['available'] / $data['total']) * 100); ?>% availability)
+                </div>
             </div>
-          </div>
-
-          <!-- Apply Filters Button -->
-          <div class="col-md-2 d-flex align-items-end">
-            <button id="applyFilters" class="btn btn-primary w-100">Apply Filters</button>
-          </div>
         </div>
-      </div>
 
-      <!-- Rooms Table -->
-      <div class="table-responsive">
-        <table id="roomsTable" class="table table-bordered table-hover table-dark align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Room #</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Rate (₱)</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            $query = "SELECT * FROM rooms ORDER BY room_number ASC";
-            $result = mysqli_query($conn, $query);
-            while ($room = mysqli_fetch_assoc($result)) {
-              $statusClass = match($room['status']) {
-                'Available' => 'badge-success',
-                'Booked' => 'badge-primary',
-                'Maintenance' => 'badge-warning',
-                default => 'badge-secondary'
-              };
-              echo "<tr>
-                      <td>{$room['room_number']}</td>
-                      <td>{$room['room_type']}</td>
-                      <td><span class='badge $statusClass'>{$room['status']}</span></td>
-                      <td>" . number_format($room['room_rate'], 2) . "</td>
-                      <td style='white-space: nowrap;'>
-                        <a href='edit_room.php?id={$room['room_id']}' class='btn btn-sm btn-warning'>
-                          <i class='fas fa-edit'></i>
-                        </a>
-                        <a href='toggle_room_status.php?id={$room['room_id']}' class='btn btn-sm btn-secondary'>
-                          Toggle Status
-                        </a>
-                      </td>
-                    </tr>";
-            }
-            ?>
-          </tbody>
-        </table>
-      </div> <!-- /.table-responsive -->
-    </div> <!-- /.container-fluid -->
-  </div> <!-- /.content -->
-</div> <!-- /.d-flex -->
+        <div class="row g-3">
+            <?php foreach($data['rooms'] as $room): ?>
+                <div class="col-lg-2 col-md-3 col-sm-6">
+                    <div class="room-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <div class="room-number fw-bold"><?php echo htmlspecialchars($room['room_number']); ?></div>
+                            <select class="form-select form-select-sm status-select py-0" 
+                                    onchange="updateRoomStatus(<?php echo $room['room_id']; ?>, this.value)">
+                                <option value="Available" <?php echo $room['status'] == 'Available' ? 'selected' : ''; ?>>Available</option>
+                                <option value="Booked" <?php echo $room['status'] == 'Booked' ? 'selected' : ''; ?>>Booked</option>
+                                <option value="Maintenance" <?php echo $room['status'] == 'Maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                            </select>
+                        </div>
+                        <div class="room-info">
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="fas fa-money-bill me-2 text-success"></i>
+                                <span>₱<?php echo number_format($room['room_rate'], 2); ?></span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-calendar-check me-2 text-primary"></i>
+                                <span><?php echo $room['current_bookings']; ?> bookings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+<?php endforeach; ?>
 
-<!-- jQuery & DataTables JS -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<style>
+/* Page Title */
+.page-title {
+    position: relative;
+    display: inline-block;
+}
+
+.title-line {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #e76f51 0%, #e76f51 100%);
+    border-radius: 2px;
+}
+
+/* Room Section Styles */
+.room-type-section {
+    background-color: #2c3034;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid #373b3e;
+}
+
+/* Room Card Styles */
+.room-card {
+    background-color: #212529;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #373b3e;
+    color: #fff;
+    height: 100%;
+    font-size: 0.875rem;
+}
+
+.room-number {
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+.room-info {
+    color: #adb5bd;
+    font-size: 0.8125rem;
+}
+
+.room-info i {
+    width: 16px;
+    text-align: center;
+}
+
+/* Status Select Styles */
+.status-select {
+    font-size: 0.75rem;
+    min-width: 100px;
+    background-color: #2c3034;
+    border-color: #373b3e;
+    color: #fff;
+}
+
+.status-select:focus {
+    background-color: #2c3034;
+    border-color: #495057;
+    color: #fff;
+    box-shadow: none;
+}
+
+.status-select option {
+    background-color: #212529;
+    color: #fff;
+    padding: 4px 8px;
+}
+
+/* Form Select Custom Arrow */
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    padding-right: 24px;
+}
+</style>
+
 <script>
-  $(document).ready(function() {
-    const table = $('#roomsTable').DataTable({
-      responsive: true,
-      autoWidth: false
+function updateRoomStatus(roomId, newStatus) {
+    if (!confirm('Are you sure you want to change this room status?')) {
+        location.reload();
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('room_id', roomId);
+    formData.append('status', newStatus);
+
+    fetch('modules/rooms/process.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to update status');
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the status');
+        location.reload();
     });
-
-    // Apply Filters Button
-    $('#applyFilters').on('click', function() {
-      const roomType = $('#filterRoomType').val();
-      const status = $('#filterStatus').val();
-      const minRate = parseFloat($('#filterMinRate').val());
-      const maxRate = parseFloat($('#filterMaxRate').val());
-
-      $.fn.dataTable.ext.search = [];
-      $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-        const roomTypeData = data[1]; // Room Type column
-        const statusData = data[2];   // Status column
-        const rateData = parseFloat(data[3].replace(/,/g, '')); // Rate column
-
-        // Filter by room type
-        if (roomType && roomTypeData !== roomType) {
-          return false;
-        }
-        // Filter by status
-        if (status && statusData !== status) {
-          return false;
-        }
-        // Filter by rate range
-        if (!isNaN(minRate) && rateData < minRate) {
-          return false;
-        }
-        if (!isNaN(maxRate) && rateData > maxRate) {
-          return false;
-        }
-        return true;
-      });
-
-      table.draw();
-    });
-  });
+}
 </script>
-</body>
-</html>
+
+<?php include 'includes/footer.php'; ?>
+

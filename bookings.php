@@ -5,250 +5,337 @@ if (!isset($_SESSION['admin'])) {
   header("Location: login.php");
   exit;
 }
+$page_title = "Manage Bookings";
+
+// Get filter parameters
+$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+$status = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
+$room_type = isset($_GET['room_type']) ? mysqli_real_escape_string($conn, $_GET['room_type']) : '';
+$date_from = isset($_GET['date_from']) ? mysqli_real_escape_string($conn, $_GET['date_from']) : '';
+$date_to = isset($_GET['date_to']) ? mysqli_real_escape_string($conn, $_GET['date_to']) : '';
+$sort = isset($_GET['sort']) ? mysqli_real_escape_string($conn, $_GET['sort']) : 'created_at';
+$order = isset($_GET['order']) ? mysqli_real_escape_string($conn, $_GET['order']) : 'DESC';
+
+// Build the WHERE clause
+$where_clauses = [];
+if ($search) {
+    $where_clauses[] = "(b.booking_id LIKE '%$search%' 
+                        OR u.first_name LIKE '%$search%' 
+                        OR u.last_name LIKE '%$search%'
+                        OR u.email LIKE '%$search%'
+                        OR r.room_number LIKE '%$search%')";
+}
+if ($status) {
+    $where_clauses[] = "b.status = '$status'";
+}
+if ($room_type) {
+    $where_clauses[] = "r.room_type = '$room_type'";
+}
+if ($date_from) {
+    $where_clauses[] = "b.check_in_date >= '$date_from'";
+}
+if ($date_to) {
+    $where_clauses[] = "b.check_out_date <= '$date_to'";
+}
+
+$where_clause = $where_clauses ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
+
+// Get room types for filter dropdown
+$room_types = mysqli_query($conn, "SELECT DISTINCT room_type FROM rooms ORDER BY room_type");
+
+// Get total records (keep this for record count display)
+$total_query = mysqli_query($conn, "
+    SELECT COUNT(*) as total 
+    FROM bookings b
+    JOIN users u ON b.user_id = u.user_id
+    JOIN rooms r ON b.room_id = r.room_id
+    $where_clause
+");
+$total_records = mysqli_fetch_assoc($total_query)['total'];
+
+// Get all bookings with filters (removed pagination)
+$bookings = mysqli_query($conn, "
+    SELECT 
+        b.*, 
+        u.first_name,
+        u.last_name,
+        u.email,
+        r.room_number,
+        r.room_type
+    FROM bookings b
+    JOIN users u ON b.user_id = u.user_id
+    JOIN rooms r ON b.room_id = r.room_id
+    $where_clause
+    ORDER BY $sort $order
+");
+
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Manage Bookings</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Font Awesome for Icons -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <!-- Your Dark Theme CSS -->
-  <link href="css/modern-theme.css" rel="stylesheet">
-  <!-- DataTables CSS -->
-  <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.4.1/css/responsive.dataTables.min.css">
-  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
 
-  <style>
-    /* Ensure the sidebar remains at a fixed width (adjust as needed) */
-    /* .sidebar { width: 250px; }  <-- If you do this in navbar.php or your CSS, that's fine */
+<!-- Page title -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Bookings</h2>
+</div>
 
-    /* Make sure .content starts after the sidebar (250px) and fills the rest */
-    .content {
-      margin-left: 250px !important; /* match your sidebar’s width */
-      width: calc(100% - 250px) !important;
-      min-height: 100vh; /* optional, to fill the screen vertically */
-    }
+<?php if (isset($_GET['updated'])): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        Booking updated successfully.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+<?php endif; ?>
 
-    /* Force container-fluid to truly fill horizontally with no extra padding */
-    .container-fluid {
-      width: 100% !important;
-      max-width: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-
-    /* Adjust the heading and filter section spacing to your liking */
-    .container-fluid .p-4 {
-      padding: 1rem !important; /* reduce default padding */
-    }
-
-    /* DataTables spacing adjustments */
-    .dataTables_wrapper .dataTables_length,
-    .dataTables_wrapper .dataTables_filter {
-      margin-bottom: 1rem !important;
-    }
-    .dataTables_wrapper .row {
-      margin: 0.5rem 0 !important;
-    }
-
-    /* Reduce table wrapper padding if you want the table to stretch fully */
-    .table-responsive {
-      padding: 0.5rem !important;
-    }
-
-    /* Optional: make the table fill 100% of its container */
-    table.dataTable {
-      width: 100% !important; /* Force the table to use all available space */
-    }
-  </style>
-</head>
-<body>
-<div class="d-flex">
-  <!-- Your left sidebar (includes/navbar.php) -->
-  <?php include 'includes/navbar.php'; ?>
-
-  <!-- Main content area -->
-  <div class="content">
-    <div class="container-fluid p-4">
-      <h2 class="mb-4 text-light"><i class="fas fa-calendar-alt"></i> Manage Bookings</h2>
-
-      <?php if (isset($_GET['updated'])): ?>
-        <div class="alert alert-success">Booking updated successfully.</div>
-      <?php endif; ?>
-
-      <!-- Filters Section -->
-      <div class="filters mb-4">
-        <div class="row g-3">
-          <!-- Status Filter -->
-          <div class="col-md-3">
-            <label for="filterStatus" class="form-label">Status</label>
-            <select id="filterStatus" class="form-select">
-              <option value="">All</option>
-              <option value="Pending">Pending</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-
-          <!-- Date Range Filter -->
-          <div class="col-md-4">
-            <label for="filterDateRange" class="form-label">Date Range</label>
-            <div class="d-flex">
-              <input type="date" id="filterStartDate" class="form-control me-2" placeholder="Start Date">
-              <input type="date" id="filterEndDate" class="form-control" placeholder="End Date">
+<!-- Search and Filters -->
+<div class="stats-card mb-4">
+    <form method="GET" class="row g-3">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-dark">
+                    <i class="fas fa-search text-light"></i>
+                </span>
+                <input type="text" name="search" class="form-control bg-dark text-light border-dark" 
+                       placeholder="Search bookings..." value="<?php echo htmlspecialchars($search); ?>">
             </div>
-          </div>
-
-          <!-- Apply Filters Button -->
-          <div class="col-md-2 d-flex align-items-end">
-            <button id="applyFilters" class="btn btn-primary w-100">
-              <i class="fas fa-filter"></i> Apply
-            </button>
-          </div>
-
-          <!-- Reset Filters Button -->
-          <div class="col-md-2 d-flex align-items-end">
-            <button id="resetFilters" class="btn btn-secondary w-100">
-              <i class="fas fa-redo"></i> Reset
-            </button>
-          </div>
         </div>
-      </div>
+        
+        <div class="col-md-2">
+            <select name="status" class="form-select bg-dark text-light border-dark">
+                <option value="">All Status</option>
+                <option value="Pending" <?php echo $status == 'Pending' ? 'selected' : ''; ?>>Pending</option>
+                <option value="Confirmed" <?php echo $status == 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
+                <option value="Completed" <?php echo $status == 'Completed' ? 'selected' : ''; ?>>Completed</option>
+                <option value="Cancelled" <?php echo $status == 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+            </select>
+        </div>
+        
+        <div class="col-md-2">
+            <select name="room_type" class="form-select bg-dark text-light border-dark">
+                <option value="">All Room Types</option>
+                <?php while($rt = mysqli_fetch_assoc($room_types)): ?>
+                    <option value="<?php echo htmlspecialchars($rt['room_type']); ?>" 
+                            <?php echo $room_type == $rt['room_type'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($rt['room_type']); ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+        </div>
+        
+        <div class="col-md-2">
+            <input type="date" name="date_from" class="form-control bg-dark text-light border-dark" 
+                   placeholder="From Date" value="<?php echo $date_from; ?>">
+        </div>
+        
+        <div class="col-md-2">
+            <div class="input-group">
+                <input type="date" name="date_to" class="form-control bg-dark text-light border-dark" 
+                       placeholder="To Date" value="<?php echo $date_to; ?>">
+                <button type="submit" class="btn btn-secondary">Filter</button>
+            </div>
+        </div>
+    </form>
+</div>
 
-      <!-- Bookings Table -->
-      <div class="table-responsive">
-        <table id="bookingsTable" class="table table-bordered table-hover table-dark align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Booking ID</th>
-              <th>Name</th>
-              <th>Room</th>
-              <th>Guests</th>
-              <th>Status</th>
-              <th>Check-in</th>
-              <th>Check-out</th>
-              <th>Total</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            $query = "
-              SELECT b.*, r.room_type, r.room_number,
-                     CONCAT(u.first_name, ' ', u.last_name) AS customer_name
-              FROM bookings b
-              JOIN rooms r ON b.room_id = r.room_id
-              JOIN users u ON b.user_id = u.user_id
-              ORDER BY b.created_at DESC
-            ";
-            $result = mysqli_query($conn, $query);
-
-            while ($row = mysqli_fetch_assoc($result)) {
-              $statusClass = match($row['status']) {
-                'Pending' => 'badge-secondary',
-                'Confirmed' => 'badge-primary',
-                'Cancelled' => 'badge-danger',
-                'Completed' => 'badge-success',
-                default => 'badge-light'
-              };
-
-              echo "<tr>
-                      <td>{$row['booking_id']}</td>
-                      <td>{$row['customer_name']}</td>
-                      <td>{$row['room_type']} <br><small>#{$row['room_number']}</small></td>
-                      <td>{$row['guests']}</td>
-                      <td><span class='badge $statusClass'>{$row['status']}</span></td>
-                      <td>{$row['check_in_date']}</td>
-                      <td>{$row['check_out_date']}</td>
-                      <td>₱" . number_format($row['total_price'], 2) . "</td>
-                      <td style='white-space: nowrap;'>
-                        <a href='edit_booking.php?id={$row['booking_id']}' class='btn btn-sm btn-warning me-1'>
-                          <i class='fas fa-edit'></i>
+<!-- Bookings Table -->
+<div class="stats-card">
+    <div class="table-responsive">
+        <table class="table table-dark">
+            <thead>
+                <tr>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'booking_id', 'order' => $sort == 'booking_id' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            ID
+                            <?php if ($sort == 'booking_id'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
                         </a>
-                        <a href='cancel_booking.php?id={$row['booking_id']}' class='btn btn-sm btn-danger me-1'>
-                          <i class='fas fa-times'></i>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'first_name', 'order' => $sort == 'first_name' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Guest
+                            <?php if ($sort == 'first_name'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
                         </a>
-                        <a href='complete_booking.php?id={$row['booking_id']}' class='btn btn-sm btn-success'>
-                          <i class='fas fa-check'></i>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'room_number', 'order' => $sort == 'room_number' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Room
+                            <?php if ($sort == 'room_number'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
                         </a>
-                      </td>
-                    </tr>";
-            }
-            ?>
-          </tbody>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'check_in_date', 'order' => $sort == 'check_in_date' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Check In
+                            <?php if ($sort == 'check_in_date'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
+                        </a>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'check_out_date', 'order' => $sort == 'check_out_date' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Check Out
+                            <?php if ($sort == 'check_out_date'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
+                        </a>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'total_price', 'order' => $sort == 'total_price' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Total
+                            <?php if ($sort == 'total_price'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
+                        </a>
+                    </th>
+                    <th class="text-light">
+                        <a href="?<?php echo http_build_query(array_merge($_GET, ['sort' => 'status', 'order' => $sort == 'status' && $order == 'ASC' ? 'DESC' : 'ASC'])); ?>" 
+                           class="text-light text-decoration-none">
+                            Status
+                            <?php if ($sort == 'status'): ?>
+                                <i class="fas fa-sort-<?php echo $order == 'ASC' ? 'up' : 'down'; ?> ms-1"></i>
+                            <?php endif; ?>
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while($booking = mysqli_fetch_assoc($bookings)): ?>
+                    <tr>
+                        <td class="text-light"><?php echo $booking['booking_id']; ?></td>
+                        <td class="text-light">
+                            <?php echo htmlspecialchars($booking['first_name'] . ' ' . $booking['last_name']); ?>
+                            <div class="small text-muted"><?php echo htmlspecialchars($booking['email']); ?></div>
+                        </td>
+                        <td class="text-light">
+                            <?php echo htmlspecialchars($booking['room_number']); ?>
+                            <div class="small text-muted"><?php echo htmlspecialchars($booking['room_type']); ?></div>
+                        </td>
+                        <td class="text-light"><?php echo date('M d, Y', strtotime($booking['check_in_date'])); ?></td>
+                        <td class="text-light"><?php echo date('M d, Y', strtotime($booking['check_out_date'])); ?></td>
+                        <td class="text-light">₱<?php echo number_format($booking['total_price'], 2); ?></td>
+                        <td>
+                            <select class="form-select form-select-sm bg-dark text-light border-secondary" 
+                                    onchange="updateStatus(<?php echo $booking['booking_id']; ?>, this.value)">
+                                <option value="Pending" <?php echo $booking['status'] == 'Pending' ? 'selected' : ''; ?>>Pending</option>
+                                <option value="Confirmed" <?php echo $booking['status'] == 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
+                                <option value="Completed" <?php echo $booking['status'] == 'Completed' ? 'selected' : ''; ?>>Completed</option>
+                                <option value="Cancelled" <?php echo $booking['status'] == 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                            </select>
+                        </td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
         </table>
-      </div> <!-- /.table-responsive -->
-    </div> <!-- /.container-fluid -->
-  </div> <!-- /.content -->
-</div> <!-- /.d-flex -->
+    </div>
+    
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <div class="text-light">
+            Total <?php echo $total_records; ?> entries
+        </div>
+    </div>
+</div>
 
-<!-- jQuery & DataTables JS -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/responsive/2.4.1/js/dataTables.responsive.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.flash.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+<style>
+/* Table Styles */
+.table {
+    --bs-table-color: #fff;
+    --bs-table-bg: #212529;
+    --bs-table-border-color: #373b3e;
+    --bs-table-striped-bg: #2c3034;
+    --bs-table-striped-color: #fff;
+    --bs-table-hover-bg: #323539;
+    --bs-table-hover-color: #fff;
+}
+
+.table th {
+    white-space: nowrap;
+    color: #fff !important;
+    font-weight: 500;
+}
+
+.table td {
+    vertical-align: middle;
+    color: #fff !important;
+}
+
+.table td .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Form Controls */
+.form-control:focus, .form-select:focus {
+    background-color: #2b3035;
+    border-color: #495057;
+    color: #fff;
+    box-shadow: none;
+}
+
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+.form-select option {
+    background-color: #212529;
+    color: #fff;
+}
+
+/* Alert Styles */
+.alert-success {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-color: rgba(25, 135, 84, 0.2);
+    color: #198754;
+}
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Stats Card */
+.stats-card {
+    background-color: #212529;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    border: 1px solid #373b3e;
+}
+</style>
 
 <script>
-  $(document).ready(function() {
-    // Initialize DataTable with autoWidth disabled to allow columns to expand
-    const table = $('#bookingsTable').DataTable({
-      responsive: true,
-      autoWidth: false
-    });
+function updateStatus(bookingId, newStatus) {
+    if (!confirm('Are you sure you want to change this booking status?')) {
+        location.reload();
+        return;
+    }
 
-    // Apply Filters Button
-    $('#applyFilters').on('click', function() {
-      const status = $('#filterStatus').val();
-      const startDate = $('#filterStartDate').val();
-      const endDate = $('#filterEndDate').val();
+    const formData = new FormData();
+    formData.append('booking_id', bookingId);
+    formData.append('status', newStatus);
 
-      $.fn.dataTable.ext.search = [];
-
-      // Custom filtering logic
-      $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-        const bookingStatus = data[4];  // Status column
-        const checkInDate = data[5];    // Check-in column
-
-        // Filter by status
-        if (status && bookingStatus !== status) {
-          return false;
+    fetch('modules/bookings/process.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to update status');
+            location.reload();
         }
-
-        // Filter by date range
-        if (startDate || endDate) {
-          const checkIn = new Date(checkInDate);
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-
-          if ((start && checkIn < start) || (end && checkIn > end)) {
-            return false;
-          }
-        }
-        return true;
-      });
-
-      table.draw();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the status');
+        location.reload();
     });
-
-    // Reset Filters Button
-    $('#resetFilters').on('click', function() {
-      $('#filterStatus').val('');
-      $('#filterStartDate').val('');
-      $('#filterEndDate').val('');
-
-      $.fn.dataTable.ext.search = [];
-      table.draw();
-    });
-  });
+}
 </script>
-</body>
-</html>
+
+<?php include 'includes/footer.php'; ?>
