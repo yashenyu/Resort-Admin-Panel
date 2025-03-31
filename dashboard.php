@@ -70,20 +70,53 @@ $revenueGrowth = $lastMonthRevenue > 0 ?
 // Occupancy Rate with detailed room status
 $roomStats = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT 
-        COUNT(*) as total_rooms,
-        SUM(CASE 
-            WHEN EXISTS (
-                SELECT 1 FROM bookings 
-                WHERE room_id = rooms.room_id 
-                AND status = 'Confirmed'
-                AND CURDATE() BETWEEN check_in_date AND check_out_date
-            ) THEN 1 ELSE 0 END
-        ) as occupied_rooms
-    FROM rooms
+        COUNT(DISTINCT r.room_id) as total_rooms,
+        COUNT(DISTINCT CASE 
+            WHEN b.status = 'Confirmed' 
+            AND CURDATE() BETWEEN b.check_in_date AND DATE_SUB(b.check_out_date, INTERVAL 1 DAY)
+            THEN r.room_id 
+        END) as occupied_rooms
+    FROM rooms r
+    LEFT JOIN bookings b ON r.room_id = b.room_id
 "));
+
 $totalRooms = $roomStats['total_rooms'];
 $occupiedRooms = $roomStats['occupied_rooms'];
 $occupancyRate = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 2) : 0;
+
+// Debug occupancy calculation
+error_log("Occupancy Debug - Total Rooms: " . $totalRooms);
+error_log("Occupancy Debug - Occupied Rooms: " . $occupiedRooms);
+error_log("Occupancy Debug - Rate: " . $occupancyRate . "%");
+
+// Get detailed room status for verification
+$roomDetails = mysqli_query($conn, "
+    SELECT 
+        r.room_id,
+        r.room_number,
+        b.booking_id,
+        b.check_in_date,
+        b.check_out_date,
+        b.status
+    FROM rooms r
+    LEFT JOIN bookings b ON r.room_id = b.room_id
+    AND b.status = 'Confirmed'
+    AND CURDATE() BETWEEN b.check_in_date AND DATE_SUB(b.check_out_date, INTERVAL 1 DAY)
+    ORDER BY r.room_id
+");
+
+// Debug room status
+while ($room = mysqli_fetch_assoc($roomDetails)) {
+    error_log(sprintf(
+        "Room Debug - ID: %s, Number: %s, Booking: %s, Check-in: %s, Check-out: %s, Status: %s",
+        $room['room_id'],
+        $room['room_number'],
+        $room['booking_id'] ?? 'None',
+        $room['check_in_date'] ?? 'N/A',
+        $room['check_out_date'] ?? 'N/A',
+        $room['status'] ?? 'Available'
+    ));
+}
 
 // Bookings per Month for multiple years
 $currentYear = date('Y');
