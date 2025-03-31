@@ -90,6 +90,89 @@ while ($row = mysqli_fetch_assoc($clusterResult)) {
   $segmentCounts[] = $row['total'];
 }
 
+// =====================
+// 4. Browser Analytics
+// =====================
+$browserQuery = "
+  SELECT browser, COUNT(*) as count 
+  FROM analytics 
+  GROUP BY browser 
+  ORDER BY count DESC";
+$browserResult = mysqli_query($conn, $browserQuery);
+$browserLabels = [];
+$browserData = [];
+$browserTotal = 0;
+$browserPercentages = [];
+
+// First, get total for percentage calculation
+$totalQuery = "SELECT COUNT(*) as total FROM analytics";
+$totalResult = mysqli_query($conn, $totalQuery);
+$totalRow = mysqli_fetch_assoc($totalResult);
+$totalVisitors = $totalRow['total'];
+
+while ($row = mysqli_fetch_assoc($browserResult)) {
+  $browserLabels[] = $row['browser'];
+  $browserData[] = $row['count'];
+  $browserPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
+}
+
+// =====================
+// 5. OS Analytics
+// =====================
+$osQuery = "
+  SELECT os, COUNT(*) as count 
+  FROM analytics 
+  GROUP BY os 
+  ORDER BY count DESC";
+$osResult = mysqli_query($conn, $osQuery);
+$osLabels = [];
+$osData = [];
+$osPercentages = [];
+
+while ($row = mysqli_fetch_assoc($osResult)) {
+  $osLabels[] = $row['os'];
+  $osData[] = $row['count'];
+  $osPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
+}
+
+// =====================
+// 6. Location Analytics
+// =====================
+$locationQuery = "
+  SELECT location, COUNT(*) as count 
+  FROM analytics 
+  GROUP BY location 
+  ORDER BY count DESC";
+$locationResult = mysqli_query($conn, $locationQuery);
+$locationLabels = [];
+$locationData = [];
+$locationPercentages = [];
+
+while ($row = mysqli_fetch_assoc($locationResult)) {
+  $locationLabels[] = $row['location'];
+  $locationData[] = $row['count'];
+  $locationPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
+}
+
+// =====================
+// 7. Processor Analytics
+// =====================
+$processorQuery = "
+  SELECT processor, COUNT(*) as count 
+  FROM analytics 
+  GROUP BY processor 
+  ORDER BY count DESC";
+$processorResult = mysqli_query($conn, $processorQuery);
+$processorLabels = [];
+$processorData = [];
+$processorPercentages = [];
+
+while ($row = mysqli_fetch_assoc($processorResult)) {
+  $processorLabels[] = $row['processor'];
+  $processorData[] = $row['count'];
+  $processorPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
+}
+
 // Include required JS libraries
 $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -142,7 +225,7 @@ include 'includes/header.php';
     <div class="analytics-card">
       <div class="analytics-card-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap">
-          <h5 class="analytics-card-title">Yearly Linear Regression</h5>
+          <h5 class="analytics-card-title">Seasonal Linear Regression</h5>
           <div class="year-toggle" id="yearToggle">
             <?php foreach ($availableYears as $index => $year): ?>
             <button class="year-btn <?php echo $index === count($availableYears)-1 ? 'active' : ''; ?>" 
@@ -157,6 +240,49 @@ include 'includes/header.php';
       <div class="regression-info">
         <div id="regressionResults" class="regression-equation"></div>
         <div id="regressionInterpretation" class="regression-interpretation"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Analytics Row -->
+  <div class="analytics-system-row">
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <h5 class="analytics-card-title">Browser Usage</h5>
+        <div class="analytics-card-subtitle">Total Visitors: <?php echo $totalVisitors; ?></div>
+      </div>
+      <div class="chart-container browser-chart">
+        <canvas id="browserChart"></canvas>
+      </div>
+    </div>
+
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <h5 class="analytics-card-title">Operating Systems</h5>
+        <div class="analytics-card-subtitle">Total Visitors: <?php echo $totalVisitors; ?></div>
+      </div>
+      <div class="chart-container os-chart">
+        <canvas id="osChart"></canvas>
+      </div>
+    </div>
+
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <h5 class="analytics-card-title">Geographic Distribution</h5>
+        <div class="analytics-card-subtitle">Total Visitors: <?php echo $totalVisitors; ?></div>
+      </div>
+      <div class="chart-container location-chart">
+        <canvas id="locationChart"></canvas>
+      </div>
+    </div>
+
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <h5 class="analytics-card-title">Processor Types</h5>
+        <div class="analytics-card-subtitle">Total Visitors: <?php echo $totalVisitors; ?></div>
+      </div>
+      <div class="chart-container processor-chart">
+        <canvas id="processorChart"></canvas>
       </div>
     </div>
   </div>
@@ -374,6 +500,44 @@ include 'includes/header.php';
     padding: 12px;
     margin-top: 16px;
   }
+}
+
+/* Add after existing styles */
+.analytics-system-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.browser-chart,
+.os-chart,
+.location-chart,
+.processor-chart {
+  height: 250px;
+}
+
+@media (max-width: 1200px) {
+  .analytics-system-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Add these new styles */
+.analytics-card-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+.chart-percentage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 </style>
 
@@ -673,6 +837,218 @@ document.addEventListener('DOMContentLoaded', () => {
           cornerRadius: 8,
           titleFont: { size: 14, weight: '600' },
           bodyFont: { size: 13 }
+        }
+      }
+    }
+  });
+
+  // Browser Usage Chart
+  const browserCtx = document.getElementById('browserChart').getContext('2d');
+  new Chart(browserCtx, {
+    type: 'doughnut',
+    data: {
+      labels: <?php echo json_encode(array_map(function($label, $percentage) {
+        return $label . ' (' . $percentage . '%)';
+      }, $browserLabels, $browserPercentages)); ?>,
+      datasets: [{
+        data: <?php echo json_encode($browserData); ?>,
+        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636', '#F6F8FA'],
+        borderColor: 'transparent',
+        borderRadius: 4,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { 
+          position: 'bottom',
+          labels: { 
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(26, 29, 33, 0.9)',
+          titleColor: '#e0e0e0',
+          bodyColor: '#8b949e',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: '600' },
+          bodyFont: { size: 13 },
+          callbacks: {
+            label: function(context) {
+              const value = context.raw;
+              const percentage = <?php echo json_encode($browserPercentages); ?>[context.dataIndex];
+              return `${value} visitors (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Operating System Chart
+  const osCtx = document.getElementById('osChart').getContext('2d');
+  new Chart(osCtx, {
+    type: 'doughnut',
+    data: {
+      labels: <?php echo json_encode(array_map(function($label, $percentage) {
+        return $label . ' (' . $percentage . '%)';
+      }, $osLabels, $osPercentages)); ?>,
+      datasets: [{
+        data: <?php echo json_encode($osData); ?>,
+        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636', '#F6F8FA'],
+        borderColor: 'transparent',
+        borderRadius: 4,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { 
+          position: 'bottom',
+          labels: { 
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(26, 29, 33, 0.9)',
+          titleColor: '#e0e0e0',
+          bodyColor: '#8b949e',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: '600' },
+          bodyFont: { size: 13 },
+          callbacks: {
+            label: function(context) {
+              const value = context.raw;
+              const percentage = <?php echo json_encode($osPercentages); ?>[context.dataIndex];
+              return `${value} visitors (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Geographic Distribution Chart
+  const locationCtx = document.getElementById('locationChart').getContext('2d');
+  new Chart(locationCtx, {
+    type: 'doughnut',
+    data: {
+      labels: <?php echo json_encode(array_map(function($label, $percentage) {
+        return $label . ' (' . $percentage . '%)';
+      }, $locationLabels, $locationPercentages)); ?>,
+      datasets: [{
+        data: <?php echo json_encode($locationData); ?>,
+        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636', '#F6F8FA', '#D73A49', '#0366D6'],
+        borderColor: 'transparent',
+        borderRadius: 4,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { 
+          position: 'bottom',
+          labels: { 
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(26, 29, 33, 0.9)',
+          titleColor: '#e0e0e0',
+          bodyColor: '#8b949e',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: '600' },
+          bodyFont: { size: 13 },
+          callbacks: {
+            label: function(context) {
+              const value = context.raw;
+              const percentage = <?php echo json_encode($locationPercentages); ?>[context.dataIndex];
+              return `${value} visitors (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Processor Types Chart
+  const processorCtx = document.getElementById('processorChart').getContext('2d');
+  new Chart(processorCtx, {
+    type: 'doughnut',
+    data: {
+      labels: <?php echo json_encode(array_map(function($label, $percentage) {
+        return $label . ' (' . $percentage . '%)';
+      }, $processorLabels, $processorPercentages)); ?>,
+      datasets: [{
+        data: <?php echo json_encode($processorData); ?>,
+        backgroundColor: ['#F78166', '#58A6FF', '#8B949E', '#238636'],
+        borderColor: 'transparent',
+        borderRadius: 4,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { 
+          position: 'bottom',
+          labels: { 
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(26, 29, 33, 0.9)',
+          titleColor: '#e0e0e0',
+          bodyColor: '#8b949e',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: '600' },
+          bodyFont: { size: 13 },
+          callbacks: {
+            label: function(context) {
+              const value = context.raw;
+              const percentage = <?php echo json_encode($processorPercentages); ?>[context.dataIndex];
+              return `${value} visitors (${percentage}%)`;
+            }
+          }
         }
       }
     }
