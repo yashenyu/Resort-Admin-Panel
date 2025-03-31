@@ -7,6 +7,9 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Manage Users";
 
+// Add CSS file reference
+$extra_css = '<link href="assets/css/users.css" rel="stylesheet">';
+
 // Get sorting parameters
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
@@ -55,8 +58,8 @@ include 'includes/header.php';
 ?>
 
 <!-- Page Title -->
-<div class="page-title mb-4">
-    <h2 class="mb-2" style="color: #e76f51;">Users</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Users</h2>
 </div>
 
 <!-- User Statistics -->

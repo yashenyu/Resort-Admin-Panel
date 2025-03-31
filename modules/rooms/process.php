@@ -23,22 +23,15 @@ if (!in_array($new_status, ['Available', 'Booked', 'Maintenance'])) {
     exit;
 }
 
-// Check if room has active bookings before changing status
-if ($new_status != 'Available') {
-    $active_bookings = mysqli_query($conn, "
-        SELECT COUNT(*) as count 
-        FROM bookings 
-        WHERE room_id = $room_id 
-        AND status = 'Confirmed'
-        AND check_out_date >= CURDATE()
-    ");
-    $booking_count = mysqli_fetch_assoc($active_bookings)['count'];
-    
-    if ($booking_count > 0) {
-        echo json_encode(['success' => false, 'message' => 'Cannot change status: Room has active or upcoming bookings']);
-        exit;
-    }
-}
+// Check for active bookings (for logging purposes only)
+$active_bookings = mysqli_query($conn, "
+    SELECT COUNT(*) as count 
+    FROM bookings 
+    WHERE room_id = $room_id 
+    AND status = 'Confirmed'
+    AND check_out_date >= CURDATE()
+");
+$booking_count = mysqli_fetch_assoc($active_bookings)['count'];
 
 // Update the room status
 $update = mysqli_query($conn, "
@@ -48,8 +41,9 @@ $update = mysqli_query($conn, "
 ");
 
 if ($update) {
-    // Log the action
-    $log_action = mysqli_real_escape_string($conn, "Changed room #$room_id status to $new_status");
+    // Log the action with booking information
+    $log_action = mysqli_real_escape_string($conn, "Changed room #$room_id status to $new_status" . 
+                 ($booking_count > 0 ? " (with $booking_count active/upcoming bookings)" : ""));
     mysqli_query($conn, "INSERT INTO audit_logs (action, timestamp) VALUES ('$log_action', NOW())");
     echo json_encode(['success' => true]);
 } else {

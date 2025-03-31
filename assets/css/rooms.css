@@ -1,0 +1,131 @@
+/* Room Management Styles */
+:root {
+    --bs-body-bg: #1a1d21 !important;
+    --bs-body-color: #fff !important;
+    --bs-dark: #1a1d21 !important;
+    --bs-dark-rgb: 26, 29, 33 !important;
+}
+
+/* Page Title */
+.page-title {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 2rem;
+}
+
+.page-title h2 {
+    color: #F78166;
+    font-size: 2.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+/* Room Section Styles */
+.room-type-section {
+    background-color: #1a1d21 !important;
+    border-radius: 0.75rem;
+    padding: 1.75rem;
+    border: 1px solid #373b3e;
+    margin-bottom: 2rem;
+}
+
+.room-type-section h3 {
+    color: #e9ecef;
+    font-weight: 500;
+}
+
+/* Room Card Styles */
+.room-card {
+    background-color: #1a1d21;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid #373b3e;
+    color: #fff;
+    height: 100%;
+    min-height: 160px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.room-card:hover {
+    border-color: #495057;
+    transform: translateY(-2px);
+}
+
+.room-number {
+    font-size: 1.5rem;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.room-info {
+    color: #adb5bd;
+    font-size: 1rem;
+    margin-top: 1.25rem;
+}
+
+.room-info i {
+    width: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.room-info .text-success {
+    color: #7EE787 !important;
+}
+
+.room-info .text-primary {
+    color: #58A6FF !important;
+}
+
+/* Status Select Styles */
+.status-select {
+    font-size: 0.9375rem;
+    min-width: 130px;
+    background-color: #1a1d21;
+    border-color: #373b3e;
+    color: #e9ecef;
+    padding: 0.375rem 0.75rem;
+}
+
+.status-select:focus {
+    background-color: #1a1d21;
+    border-color: #495057;
+    color: #fff;
+    box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1);
+}
+
+.status-select option {
+    background-color: #1a1d21;
+    color: #fff;
+    padding: 8px 12px;
+}
+
+/* Form Select Custom Arrow */
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+    padding-right: 2.5rem;
+}
+
+/* Availability Text */
+.text-light.opacity-75 {
+    color: #adb5bd !important;
+}
+
+/* Grid Adjustments for Room Cards */
+@media (min-width: 992px) {
+    .col-lg-2 {
+        flex: 0 0 auto;
+        width: 20% !important; /* Adjust to fit 5 cards in a row */
+    }
+}
+
+/* Prevent FOUC */
+html {
+    background-color: #1a1d21 !important;
+}
+
+/* Override any transitions to prevent color flash */
+* {
+    transition: none !important;
+} 

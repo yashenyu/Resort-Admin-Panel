@@ -10,13 +10,16 @@ $page_title = "Manage Rooms";
 // Fetch all rooms with their current status
 $roomsQuery = "
     SELECT r.*, 
-           COALESCE(b.current_bookings, 0) as current_bookings
+           COALESCE(b.current_bookings, 0) as current_bookings,
+           COALESCE(b.future_bookings, 0) as future_bookings
     FROM rooms r
     LEFT JOIN (
-        SELECT room_id, COUNT(*) as current_bookings 
+        SELECT 
+            room_id, 
+            COUNT(*) as current_bookings,
+            SUM(CASE WHEN check_out_date >= CURDATE() THEN 1 ELSE 0 END) as future_bookings
         FROM bookings 
         WHERE status = 'Confirmed' 
-        AND check_out_date >= CURDATE()
         GROUP BY room_id
     ) b ON r.room_id = b.room_id
     ORDER BY r.room_type, r.room_number";
@@ -44,16 +47,16 @@ include 'includes/header.php';
 ?>
 
 <!-- Page Title -->
-<div class="page-title mb-4">
-    <h2 class="mb-2">Rooms</h2>
+<div class="page-title">
+    <h2>Rooms</h2>
 </div>
 
 <?php foreach($roomsByType as $roomType => $data): ?>
     <!-- Room Type Section -->
-    <div class="room-type-section mb-4">
+    <div class="room-type-section">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-                <h3 class="text-light h4 mb-1"><?php echo htmlspecialchars($roomType); ?></h3>
+                <h3 class="h4 mb-1"><?php echo htmlspecialchars($roomType); ?></h3>
                 <div class="text-light opacity-75 small">
                     <i class="fas fa-bed me-1"></i>
                     <?php echo $data['available']; ?> of <?php echo $data['total']; ?> rooms available
@@ -62,13 +65,15 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-4">
             <?php foreach($data['rooms'] as $room): ?>
-                <div class="col-lg-2 col-md-3 col-sm-6">
+                <div class="col-lg-2 col-md-4 col-sm-6">
                     <div class="room-card">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <div class="room-number fw-bold"><?php echo htmlspecialchars($room['room_number']); ?></div>
-                            <select class="form-select form-select-sm status-select py-0" 
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div class="room-number"><?php echo htmlspecialchars($room['room_number']); ?></div>
+                            <select class="form-select form-select-sm status-select" 
+                                    data-room-id="<?php echo $room['room_id']; ?>"
+                                    data-has-bookings="<?php echo $room['future_bookings'] > 0 ? '1' : '0'; ?>"
                                     onchange="updateRoomStatus(<?php echo $room['room_id']; ?>, this.value)">
                                 <option value="Available" <?php echo $room['status'] == 'Available' ? 'selected' : ''; ?>>Available</option>
                                 <option value="Booked" <?php echo $room['status'] == 'Booked' ? 'selected' : ''; ?>>Booked</option>
@@ -76,13 +81,18 @@ include 'includes/header.php';
                             </select>
                         </div>
                         <div class="room-info">
-                            <div class="d-flex align-items-center mb-1">
+                            <div class="d-flex align-items-center mb-3">
                                 <i class="fas fa-money-bill me-2 text-success"></i>
                                 <span>₱<?php echo number_format($room['room_rate'], 2); ?></span>
                             </div>
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-calendar-check me-2 text-primary"></i>
                                 <span><?php echo $room['current_bookings']; ?> bookings</span>
+                                <?php if ($room['future_bookings'] > 0): ?>
+                                    <span class="ms-2 badge bg-warning text-dark">
+                                        <?php echo $room['future_bookings']; ?> upcoming
+                                    </span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -171,14 +181,22 @@ include 'includes/header.php';
 
 <script>
 function updateRoomStatus(roomId, newStatus) {
-    if (!confirm('Are you sure you want to change this room status?')) {
-        location.reload();
-        return;
-    }
-
     const formData = new FormData();
     formData.append('room_id', roomId);
     formData.append('status', newStatus);
+
+    // Show warning if room has future bookings
+    if (document.querySelector(`[data-room-id="${roomId}"]`).dataset.hasBookings === "1") {
+        if (!confirm('Warning: This room has future bookings. Are you sure you want to change its status?')) {
+            location.reload();
+            return;
+        }
+    } else {
+        if (!confirm('Are you sure you want to change this room status?')) {
+            location.reload();
+            return;
+        }
+    }
 
     fetch('modules/rooms/process.php', {
         method: 'POST',

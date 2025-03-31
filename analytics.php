@@ -1,4 +1,5 @@
 <?php
+// db_connect.php must establish a MySQL connection in $conn
 include 'db_connect.php';
 session_start();
 
@@ -9,33 +10,57 @@ if (!isset($_SESSION['admin'])) {
 
 $page_title = "Analytics";
 
-// SECTION 1: Booking Trends & Regression Forecast
-$trendQuery = "SELECT DATE_FORMAT(check_in_date, '%Y-%m') AS month, COUNT(*) AS totalBookings 
-               FROM bookings 
-               GROUP BY month 
-               ORDER BY month ASC";
-$trendResult = mysqli_query($conn, $trendQuery);
+// =====================
+// 1. Get Booking Data by Year and Month
+// =====================
+$bookingsQuery = "
+  SELECT 
+    YEAR(check_in_date) AS year,
+    MONTH(check_in_date) AS month,
+    COUNT(*) AS total_bookings,
+    SUM(total_price) as revenue
+  FROM bookings
+  WHERE status IN ('Completed', 'Confirmed')
+  GROUP BY year, month
+  ORDER BY year ASC, month ASC
+";
+$bookingsResult = mysqli_query($conn, $bookingsQuery);
 
-$bookingMonths = [];
-$bookingCounts = [];
+$yearlyData = [];
+$availableYears = [];
 
-if ($trendResult) {
-    while ($row = mysqli_fetch_assoc($trendResult)) {
-        $bookingMonths[] = $row['month'];
-        $bookingCounts[] = (int)$row['totalBookings'];
+// Initialize arrays for all months (1-12) for each year
+if ($bookingsResult && mysqli_num_rows($bookingsResult) > 0) {
+    while ($row = mysqli_fetch_assoc($bookingsResult)) {
+        $year = $row['year'];
+        $month = $row['month'];
+        
+        if (!isset($yearlyData[$year])) {
+            $yearlyData[$year] = [
+                'bookings' => array_fill(1, 12, 0),
+                'revenue' => array_fill(1, 12, 0),
+                'total_bookings' => 0,
+                'total_revenue' => 0
+            ];
+            $availableYears[] = $year;
+        }
+        
+        $yearlyData[$year]['bookings'][$month] = (int)$row['total_bookings'];
+        $yearlyData[$year]['revenue'][$month] = (float)$row['revenue'];
+        $yearlyData[$year]['total_bookings'] += (int)$row['total_bookings'];
+        $yearlyData[$year]['total_revenue'] += (float)$row['revenue'];
     }
 }
 
-// Fallback sample data
-if (empty($bookingMonths)) {
-    $bookingMonths = ["2024-01", "2024-02", "2024-03"];
-    $bookingCounts = [5, 8, 12];
-}
+// Sort years in ascending order
+sort($availableYears);
 
-// Booking Classification
+// =====================
+// 2. Booking Classification
+// =====================
 $classQuery = "SELECT status, COUNT(*) AS total 
                FROM bookings 
-               WHERE status IN ('Cancelled', 'Completed') 
+               WHERE status IN ('Cancelled', 'Completed', 'Pending') 
                GROUP BY status";
 $classResult = mysqli_query($conn, $classQuery);
 $classLabels = [];
@@ -45,14 +70,18 @@ while ($row = mysqli_fetch_assoc($classResult)) {
   $classCounts[] = $row['total'];
 }
 
-// Guest Segmentation
-$clusterQuery = "SELECT CASE 
-                    WHEN guests = 1 THEN 'Solo Travelers'
-                    WHEN guests IN (2,3) THEN 'Couples/Small Groups'
-                    ELSE 'Family Travelers'
-                 END AS segment, COUNT(*) AS total
-                 FROM bookings 
-                 GROUP BY segment";
+// =====================
+// 3. Guest Segmentation
+// =====================
+$clusterQuery = "
+  SELECT CASE 
+      WHEN guests = 1 THEN 'Solo Travelers'
+      WHEN guests IN (2,3) THEN 'Couples/Small Groups'
+      ELSE 'Family Travelers'
+    END AS segment, COUNT(*) AS total
+  FROM bookings 
+  GROUP BY segment
+";
 $clusterResult = mysqli_query($conn, $clusterQuery);
 $segmentLabels = [];
 $segmentCounts = [];
@@ -61,241 +90,589 @@ while ($row = mysqli_fetch_assoc($clusterResult)) {
   $segmentCounts[] = $row['total'];
 }
 
-// Add libraries
+// Include required JS libraries
 $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
 ';
 
 include 'includes/header.php';
 ?>
 
-<h2 class="mb-4">Analytics</h2>
+<!-- Page Title -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Analytics</h2>
+</div>
 
-<!-- Nav Tabs -->
-<ul class="nav nav-tabs" id="analyticsTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="trend-tab" data-bs-toggle="tab" data-bs-target="#trend" type="button" role="tab">
-      Booking Trends
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="classification-tab" data-bs-toggle="tab" data-bs-target="#classification" type="button" role="tab">
-      Booking Classification
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="segmentation-tab" data-bs-toggle="tab" data-bs-target="#segmentation" type="button" role="tab">
-      Guest Segmentation
-    </button>
-  </li>
-</ul>
-
-<!-- Tab Content -->
-<div class="tab-content" id="analyticsTabContent">
-  <!-- Booking Trends -->
-  <div class="tab-pane fade show active" id="trend" role="tabpanel">
-    <div class="chart-card">
-      <div class="chart-card-header"><h5 class="chart-card-title">Booking Trends & Forecast</h5></div>
-      <div class="chart-container" style="position: relative; height: 400px;">
-        <canvas id="trendChart"></canvas>
+<!-- Main Content -->
+<div class="analytics-container">
+  <!-- Top Row - Revenue and Status -->
+  <div class="analytics-top-row">
+    <!-- Revenue Trend -->
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h5 class="analytics-card-title">Monthly Revenue</h5>
+          <div class="year-toggle" id="revenueYearToggle">
+            <?php foreach ($availableYears as $index => $year): ?>
+            <button class="year-btn <?php echo $index === count($availableYears)-1 ? 'active' : ''; ?>" 
+                    data-year="<?php echo $year; ?>"><?php echo $year; ?></button>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container revenue-chart">
+        <canvas id="revenueChart"></canvas>
       </div>
     </div>
-  </div>
 
-  <!-- Booking Classification -->
-  <div class="tab-pane fade" id="classification" role="tabpanel">
-    <div class="chart-card">
-      <div class="chart-card-header"><h5 class="chart-card-title">Booking Outcomes</h5></div>
-      <div class="chart-container">
+    <!-- Booking Classification -->
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <h5 class="analytics-card-title">Booking Status</h5>
+      </div>
+      <div class="chart-container status-chart">
         <canvas id="classificationChart"></canvas>
       </div>
     </div>
   </div>
 
-  <!-- Guest Segmentation -->
-  <div class="tab-pane fade" id="segmentation" role="tabpanel">
-    <div class="chart-card">
-      <div class="chart-card-header"><h5 class="chart-card-title">Guest Segments</h5></div>
-      <div class="chart-container">
-        <canvas id="segmentationChart"></canvas>
+  <!-- Bottom Row - Booking Trends -->
+  <div class="analytics-bottom-row">
+    <div class="analytics-card">
+      <div class="analytics-card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h5 class="analytics-card-title">Yearly Linear Regression</h5>
+          <div class="year-toggle" id="yearToggle">
+            <?php foreach ($availableYears as $index => $year): ?>
+            <button class="year-btn <?php echo $index === count($availableYears)-1 ? 'active' : ''; ?>" 
+                    data-year="<?php echo $year; ?>"><?php echo $year; ?></button>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container trend-chart">
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="regression-info">
+        <div id="regressionResults" class="regression-equation"></div>
+        <div id="regressionInterpretation" class="regression-interpretation"></div>
       </div>
     </div>
   </div>
 </div>
 
 <style>
-.chart-card {
-  background: #1a1d21;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+:root {
+  --primary-color: #F78166;
+  --primary-light: rgba(247, 129, 102, 0.1);
+  --text-primary: #e0e0e0;
+  --text-secondary: #8b949e;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --card-bg: #1a1d21;
+  --grid-color: rgba(201, 209, 217, 0.1);
+  --success-color: #7EE787;
+  --info-color: #58A6FF;
 }
-.chart-card-title {
-  color: #e0e0e0;
+
+/* Main Layout */
+.analytics-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 24px 0;
+  padding: 0 16px;
+}
+
+.analytics-top-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 24px;
+}
+
+.analytics-bottom-row {
+  width: 100%;
+}
+
+/* Page Title */
+.page-title {
+  padding: 32px 16px 16px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0;
+}
+
+.page-title h2 {
+  color: var(--text-primary);
   margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.5px;
 }
+
+/* Cards */
+.analytics-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analytics-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.analytics-card-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.analytics-card-title {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: -0.25px;
+}
+
+/* Chart Containers */
 .chart-container {
-  background: #1a1d21;
+  background: var(--card-bg);
   border-radius: 8px;
-  padding: 10px;
+  width: 100%;
+  padding: 16px;
 }
-.nav-tabs .nav-link.active {
-  border-color: #F78166;
-  color: #F78166;
+
+.trend-chart {
+  height: 450px;
+  position: relative;
+}
+
+.revenue-chart {
+  height: 300px;
+}
+
+.status-chart {
+  height: 300px;
+}
+
+/* Year Toggle Buttons */
+.year-toggle {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.year-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+}
+
+.year-btn:hover:not(.active) {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.year-btn.active {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* Regression Info */
+.regression-info {
+  margin-top: 24px;
+  padding: 16px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.regression-equation {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  letter-spacing: -0.25px;
+}
+
+.regression-interpretation {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .analytics-top-row {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .analytics-container {
+    padding: 0 12px;
+  }
+  
+  .trend-chart {
+    height: 400px;
+  }
+  
+  .revenue-chart,
+  .status-chart {
+    height: 250px;
+  }
+  
+  .analytics-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-title {
+    padding: 24px 12px 12px;
+  }
+  
+  .page-title h2 {
+    font-size: 1.5rem;
+  }
+  
+  .analytics-card-header {
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .year-toggle {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .year-btn {
+    padding: 4px 8px;
+    font-size: 0.8125rem;
+    min-width: 60px;
+  }
+  
+  .trend-chart {
+    height: 300px;
+    padding: 12px;
+  }
+  
+  .regression-info {
+    padding: 12px;
+    margin-top: 16px;
+  }
 }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  const months = <?php echo json_encode($bookingMonths); ?>;
-  const bookings = <?php echo json_encode($bookingCounts); ?>;
-
-  let forecastMonths = [...months];
-  let last = months[months.length - 1].split('-');
-  let year = parseInt(last[0]);
-  let month = parseInt(last[1]);
-
-  // Add 3 forecast months
-  for (let i = 0; i < 3; i++) {
-    month++;
-    if (month > 12) {
-      month = 1;
-      year++;
-    }
-    forecastMonths.push(`${year}-${month.toString().padStart(2, '0')}`);
+document.addEventListener('DOMContentLoaded', () => {
+  // Data from PHP
+  const yearlyData = <?php echo json_encode($yearlyData); ?>;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  let trendChart = null;
+  let revenueChart = null;
+  
+  function createRegressionData(data) {
+    return data.map((y, x) => [x, y]);
   }
-
-  // Linear regression
-  let regressionData = months.map((_, i) => [i, bookings[i]]);
-  let result = regression.linear(regressionData);
-  let regressionLine = forecastMonths.map((_, i) => Math.round(result.predict(i)[1]));
-
-  // Forecast values: null for actual, predictions for forecast
-  let forecastValues = regressionLine.map((val, idx) => idx < months.length ? null : val);
-
-  // Booking Trend Chart
-  new Chart(document.getElementById('trendChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: forecastMonths,
-      datasets: [
-        {
-          label: 'Actual Bookings',
-          data: bookings,
-          borderColor: '#F78166',
-          backgroundColor: 'rgba(247,129,102,0.1)',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4
+  
+  function calculateRegression(data) {
+    const regressionData = createRegressionData(data);
+    const result = regression.linear(regressionData);
+    const slope = result.equation[0];
+    const intercept = result.equation[1];
+    const r2 = result.r2;
+    
+    // Regression points for the actual data
+    const regressionPoints = result.points.map(p => Math.round(p[1]));
+    
+    return {
+      slope,
+      intercept,
+      r2,
+      regressionPoints
+    };
+  }
+  
+  function updateTrendChart(year) {
+    const bookings = yearlyData[year].bookings;
+    const bookingsArray = Object.values(bookings);
+    const regression = calculateRegression(bookingsArray);
+    
+    if (trendChart) {
+      trendChart.destroy();
+    }
+    
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: monthNames,
+        datasets: [
+          {
+            label: 'Monthly Bookings',
+            data: bookingsArray,
+            borderColor: '#F78166',
+            backgroundColor: 'rgba(247,129,102,0.1)',
+            tension: 0.3,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            fill: true
+          },
+          {
+            label: 'Trend Line',
+            data: regression.regressionPoints,
+            borderColor: '#7EE787',
+            borderDash: [5, 5],
+            tension: 0,
+            pointRadius: 0,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
         },
-        {
-          label: 'Trend Line',
-          data: regressionLine,
-          borderColor: '#7EE787',
-          fill: false,
-          tension: 0,
-          borderDash: [5, 5],
-          pointRadius: 0
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(201,209,217,0.1)',
+              drawBorder: false
+            },
+            ticks: {
+              color: '#8b949e',
+              font: { size: 12, weight: '500' }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(201,209,217,0.1)',
+              drawBorder: false
+            },
+            ticks: {
+              color: '#8b949e',
+              font: { size: 12, weight: '500' },
+              padding: 8
+            }
+          }
         },
-        {
-          label: 'Forecast',
-          data: forecastValues,
-          borderColor: '#58A6FF',
-          backgroundColor: 'rgba(88,166,255,0.1)',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: {
+              color: '#e0e0e0',
+              font: { size: 12, weight: '500' },
+              padding: 20,
+              usePointStyle: true,
+              pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(26, 29, 33, 0.9)',
+            titleColor: '#e0e0e0',
+            bodyColor: '#8b949e',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { size: 14, weight: '600' },
+            bodyFont: { size: 13 },
+            displayColors: false
+          }
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'top',
-          labels: { color: '#e0e0e0' }
+      }
+    });
+    
+    // Update regression info with enhanced styling
+    const eqn = `y = ${regression.slope.toFixed(2)}x + ${regression.intercept.toFixed(2)} (R² = ${regression.r2.toFixed(3)})`;
+    document.getElementById('regressionResults').innerHTML = `<strong>Regression Equation:</strong> ${eqn}`;
+    
+    let interpretation = "<strong>Interpretation:</strong> ";
+    interpretation += `The trend shows an average ${regression.slope >= 0 ? "increase" : "decrease"} of ${Math.abs(regression.slope).toFixed(1)} bookings per month in ${year}. `;
+    interpretation += `The model explains ${(regression.r2 * 100).toFixed(1)}% of the variation in booking numbers.`;
+    document.getElementById('regressionInterpretation').innerHTML = interpretation;
+  }
+  
+  function updateRevenueChart(year) {
+    const revenue = yearlyData[year].revenue;
+    const revenueArray = Object.values(revenue);
+    
+    if (revenueChart) {
+      revenueChart.destroy();
+    }
+    
+    const revCtx = document.getElementById('revenueChart').getContext('2d');
+    revenueChart = new Chart(revCtx, {
+      type: 'bar',
+      data: {
+        labels: monthNames,
+        datasets: [{
+          label: 'Monthly Revenue',
+          data: revenueArray,
+          backgroundColor: 'rgba(247,129,102,0.2)',
+          borderColor: '#F78166',
+          borderWidth: 1,
+          borderRadius: 4,
+          hoverBackgroundColor: 'rgba(247,129,102,0.3)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
         },
-        annotation: {
-          annotations: {
-            line1: {
-              type: 'line',
-              xMin: months.length - 0.5,
-              xMax: months.length - 0.5,
-              borderColor: 'rgba(255,255,255,0.3)',
-              borderDash: [6, 6],
-              borderWidth: 2,
-              label: {
-                content: 'Forecast Start',
-                enabled: true,
-                position: 'top',
-                backgroundColor: '#000',
-                color: '#fff',
-                padding: 4
+        scales: {
+          x: {
+            grid: {
+              display: false,
+              drawBorder: false
+            },
+            ticks: {
+              color: '#8b949e',
+              font: { size: 11, weight: '500' }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(201,209,217,0.1)',
+              drawBorder: false
+            },
+            ticks: { 
+              color: '#8b949e',
+              callback: function(value) {
+                return '₱' + value.toLocaleString();
+              },
+              font: { size: 11, weight: '500' },
+              padding: 8
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: {
+              color: '#e0e0e0',
+              font: { size: 12, weight: '500' },
+              padding: 20,
+              usePointStyle: true,
+              pointStyle: 'rect'
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(26, 29, 33, 0.9)',
+            titleColor: '#e0e0e0',
+            bodyColor: '#8b949e',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            padding: 12,
+            cornerRadius: 8,
+            titleFont: { size: 14, weight: '600' },
+            bodyFont: { size: 13 },
+            displayColors: false,
+            callbacks: {
+              label: function(context) {
+                return '₱' + context.parsed.y.toLocaleString();
               }
             }
           }
         }
-      },
-      scales: {
-        x: {
-          ticks: { color: '#c9d1d9' },
-          grid: { color: 'rgba(201,209,217,0.1)' }
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: '#c9d1d9',
-            precision: 0,
-            callback: value => Number.isInteger(value) ? value : ''
-          },
-          grid: { color: 'rgba(201,209,217,0.1)' }
-        }
       }
-    }
+    });
+  }
+  
+  // Initial chart renders with the latest year
+  const latestYear = <?php echo end($availableYears); ?>;
+  updateTrendChart(latestYear);
+  updateRevenueChart(latestYear);
+  
+  // Enhanced click handlers for better user feedback
+  function handleYearButtonClick(button, toggleId, updateFunction) {
+    const buttons = document.querySelectorAll(`#${toggleId} .year-btn`);
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      btn.style.transform = '';
+    });
+    button.classList.add('active');
+    button.style.transform = 'scale(0.95)';
+    setTimeout(() => button.style.transform = '', 150);
+    updateFunction(button.dataset.year);
+  }
+  
+  document.querySelectorAll('#yearToggle .year-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      handleYearButtonClick(this, 'yearToggle', updateTrendChart);
+    });
   });
-
-  // Classification Chart
-  new Chart(document.getElementById('classificationChart').getContext('2d'), {
+  
+  document.querySelectorAll('#revenueYearToggle .year-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      handleYearButtonClick(this, 'revenueYearToggle', updateRevenueChart);
+    });
+  });
+  
+  // Enhanced Classification Chart
+  const classCtx = document.getElementById('classificationChart').getContext('2d');
+  new Chart(classCtx, {
     type: 'doughnut',
     data: {
       labels: <?php echo json_encode($classLabels); ?>,
       datasets: [{
         data: <?php echo json_encode($classCounts); ?>,
-        backgroundColor: ['#F78166', '#58A6FF'],
-        borderColor: 'transparent'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: '#e0e0e0' }
-        }
-      }
-    }
-  });
-
-  // Segmentation Chart
-  new Chart(document.getElementById('segmentationChart').getContext('2d'), {
-    type: 'pie',
-    data: {
-      labels: <?php echo json_encode($segmentLabels); ?>,
-      datasets: [{
-        data: <?php echo json_encode($segmentCounts); ?>,
         backgroundColor: ['#F78166', '#58A6FF', '#8B949E'],
-        borderColor: 'transparent'
+        borderColor: 'transparent',
+        borderRadius: 4,
+        hoverOffset: 4
       }]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
       plugins: {
-        legend: {
+        legend: { 
           position: 'bottom',
-          labels: { color: '#e0e0e0' }
+          labels: { 
+            color: '#e0e0e0',
+            font: { size: 11, weight: '500' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(26, 29, 33, 0.9)',
+          titleColor: '#e0e0e0',
+          bodyColor: '#8b949e',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: '600' },
+          bodyFont: { size: 13 }
         }
       }
     }
@@ -304,3 +681,4 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <?php include 'includes/footer.php'; ?>
+

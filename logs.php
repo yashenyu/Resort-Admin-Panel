@@ -7,6 +7,9 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Audit Logs";
 
+// Add CSS file reference
+$extra_css = '<link href="assets/css/logs.css" rel="stylesheet">';
+
 // Get sorting parameters
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'timestamp';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
@@ -72,8 +75,8 @@ include 'includes/header.php';
 ?>
 
 <!-- Page Title -->
-<div class="page-title mb-4">
-    <h2 class="mb-2" style="color: #e76f51;">Audit Logs</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Audit Logs</h2>
 </div>
 
 <!-- Log Statistics -->

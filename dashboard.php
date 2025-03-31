@@ -13,8 +13,14 @@ $page_title = "Dashboard";
 $time_period = isset($_GET['period']) ? $_GET['period'] : 'total';
 $date_condition = '';
 switch($time_period) {
+    case 'today':
+        $date_condition = "DATE(created_at) = CURDATE()";
+        break;
     case 'month':
         $date_condition = "DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')";
+        break;
+    case 'year':
+        $date_condition = "YEAR(created_at) = YEAR(CURDATE())";
         break;
     default:
         $date_condition = "1=1"; // total (all time)
@@ -141,11 +147,11 @@ echo "<!-- Debug: Yearly Data: " . json_encode($yearlyData) . " -->";
 // Prepare datasets for Chart.js
 $datasets = [];
 $colors = [
-    '#F78166', // Orange
-    '#58A6FF', // Blue
-    '#7EE787', // Green
-    '#FF7B72', // Red
-    '#8B949E'  // Gray
+    '#F78166', // Primary (Coral)
+    '#58A6FF', // Info (Blue)
+    '#7EE787', // Success (Green)
+    '#FF7B72', // Danger (Red)
+    '#1a1d21'  // Muted (Gray)
 ];
 
 foreach ($yearlyData as $year => $counts) {
@@ -209,9 +215,12 @@ if (!$roomTypeData) {
 
 // Recent Activities
 $recentActivities = mysqli_query($conn, "
-    SELECT l.*, u.first_name, u.last_name 
+    SELECT 
+        l.*,
+        COALESCE(u.first_name, 'Admin') as first_name,
+        COALESCE(u.last_name, '') as last_name 
     FROM audit_logs l 
-    JOIN users u ON l.user_id = u.user_id 
+    LEFT JOIN users u ON l.user_id = u.user_id 
     ORDER BY l.timestamp DESC LIMIT 5
 ");
 
@@ -219,12 +228,11 @@ $recentActivities = mysqli_query($conn, "
 $today = date('Y-m-d');
 $todayStats = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT 
-        COUNT(CASE WHEN DATE(check_in_date) = '$today' THEN 1 END) as checkins,
-        COUNT(CASE WHEN DATE(check_out_date) = '$today' THEN 1 END) as checkouts,
-        COUNT(CASE WHEN DATE(created_at) = '$today' THEN 1 END) as new_bookings,
-        COALESCE(SUM(CASE WHEN DATE(created_at) = '$today' THEN total_price ELSE 0 END), 0) as today_revenue
+        SUM(CASE WHEN DATE(check_in_date) = CURDATE() AND status = 'Confirmed' THEN 1 ELSE 0 END) as checkins,
+        SUM(CASE WHEN DATE(check_out_date) = CURDATE() AND status = 'Confirmed' THEN 1 ELSE 0 END) as checkouts,
+        COUNT(CASE WHEN DATE(created_at) = CURDATE() THEN 1 END) as new_bookings,
+        COALESCE(SUM(CASE WHEN DATE(created_at) = CURDATE() AND status IN ('Confirmed', 'Completed') THEN total_price ELSE 0 END), 0) as today_revenue
     FROM bookings
-    WHERE status IN ('Confirmed', 'Completed')
 "));
 
 $todayCheckins = $todayStats['checkins'] ?? 0;
@@ -234,20 +242,65 @@ $todayRevenue = $todayStats['today_revenue'] ?? 0;
 
 // Include Chart.js in extra_js
 $extra_js = '
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-window.addEventListener("load", function() {
-    if (typeof Chart === "undefined") {
-        console.error("Chart.js failed to load!");
-        return;
-    }
-    
-    console.log("Chart.js loaded successfully");
-    
+document.addEventListener("DOMContentLoaded", function() {
     // Set default Chart.js configuration
-    Chart.defaults.color = "#c9d1d9";
+    Chart.defaults.color = "#8b949e";
     Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif";
+    
+    // Configure chart options
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: "top",
+                align: "end",
+                labels: {
+                    color: "#e0e0e0",
+                    font: { size: 12, weight: "500" },
+                    padding: 20,
+                    usePointStyle: true
+                }
+            },
+            tooltip: {
+                backgroundColor: "rgba(44, 48, 52, 0.9)",
+                titleColor: "#e0e0e0",
+                bodyColor: "#8b949e",
+                borderColor: "rgba(255, 255, 255, 0.1)",
+                borderWidth: 1,
+                padding: 12,
+                cornerRadius: 8,
+                titleFont: { size: 14, weight: "600" },
+                bodyFont: { size: 13 },
+                displayColors: false
+            }
+        },
+        scales: {
+            x: {
+                grid: {
+                    color: "rgba(201, 209, 217, 0.1)",
+                    drawBorder: false
+                },
+                ticks: {
+                    color: "#8b949e",
+                    font: { size: 11, weight: "500" }
+                }
+            },
+            y: {
+                grid: {
+                    color: "rgba(201, 209, 217, 0.1)",
+                    drawBorder: false
+                },
+                ticks: {
+                    color: "#8b949e",
+                    font: { size: 11, weight: "500" },
+                    padding: 8
+                }
+            }
+        }
+    };
 });
 </script>
 ';
@@ -290,10 +343,176 @@ include 'includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Dashboard</h2>
     <div class="btn-group">
+        <a href="?period=today" class="btn btn-sm <?php echo $time_period == 'today' ? 'btn-primary' : 'btn-dark'; ?>">Today</a>
         <a href="?period=month" class="btn btn-sm <?php echo $time_period == 'month' ? 'btn-primary' : 'btn-dark'; ?>">This Month</a>
+        <a href="?period=year" class="btn btn-sm <?php echo $time_period == 'year' ? 'btn-primary' : 'btn-dark'; ?>">This Year</a>
         <a href="?period=total" class="btn btn-sm <?php echo $time_period == 'total' ? 'btn-primary' : 'btn-dark'; ?>">All Time</a>
     </div>
 </div>
+
+<style>
+:root {
+  /* Primary Colors */
+  --primary-color: #F78166;
+  --primary-light: rgba(247, 129, 102, 0.1);
+  
+  /* Background Colors */
+  --bg-dark: #1a1d21;
+  --bg-darker: #212529;
+  --bg-card: #2c3034;
+  
+  /* Text Colors */
+  --text-primary: #e0e0e0;
+  --text-secondary: #8b949e;
+  --text-muted: #6c757d;
+  
+  /* Border Colors */
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-hover: #495057;
+  
+  /* Status Colors */
+  --success-color: #7EE787;
+  --danger-color: #FF7B72;
+  --warning-color: #f6b93b;
+  --info-color: #58A6FF;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.stats-card {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+}
+
+.stats-title {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stats-value {
+  color: var(--text-primary);
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+.stats-change {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.stats-change .text-success {
+  color: var(--success-color) !important;
+}
+
+.stats-change .text-danger {
+  color: var(--danger-color) !important;
+}
+
+/* Activity List Styles */
+.activity-list {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.activity-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  color: var(--primary-color);
+}
+
+.activity-text {
+  color: var(--text-primary);
+}
+
+.activity-time {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* Chart Containers */
+.chart-container {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 24px;
+}
+
+/* Button Styles */
+.btn-group .btn {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--bg-darker);
+}
+
+.btn-group .btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.btn-group .btn.btn-primary {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* Daily Stats */
+.daily-stat-item {
+  background: var(--bg-darker);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: transform 0.2s ease;
+}
+
+.daily-stat-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+}
+
+.daily-stat-label {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.daily-stat-value {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.text-success { color: var(--success-color) !important; }
+.text-danger { color: var(--danger-color) !important; }
+.text-warning { color: var(--warning-color) !important; }
+.text-info { color: var(--info-color) !important; }
+</style>
 
 <div class="grid-container">
   <div class="stats-card">
@@ -302,9 +521,17 @@ include 'includes/header.php';
       <span class="period-label">
         <?php 
         switch($time_period) {
-            case 'month': echo '(This Month)';
+            case 'today':
+                echo '(Today)';
                 break;
-            default: echo '(All Time)';
+            case 'month':
+                echo '(This Month)';
+                break;
+            case 'year':
+                echo '(This Year)';
+                break;
+            default:
+                echo '(All Time)';
         }
         ?>
       </span>
@@ -336,9 +563,17 @@ include 'includes/header.php';
       <span class="period-label">
         <?php 
         switch($time_period) {
-            case 'month': echo '(This Month)';
+            case 'today':
+                echo '(Today)';
                 break;
-            default: echo '(All Time)';
+            case 'month':
+                echo '(This Month)';
+                break;
+            case 'year':
+                echo '(This Year)';
+                break;
+            default:
+                echo '(All Time)';
         }
         ?>
       </span>
@@ -347,7 +582,7 @@ include 'includes/header.php';
     <div class="stats-change">
       <i class="fas fa-chart-line"></i>
       <span class="<?php echo $revenueGrowth >= 0 ? 'text-success' : 'text-danger'; ?>">
-        <?php echo $revenueGrowth; ?>% vs last month
+        <?php echo $revenueGrowth; ?>% vs last <?php echo $time_period == 'today' ? 'day' : 'month'; ?>
       </span>
     </div>
   </div>
@@ -429,7 +664,7 @@ include 'includes/header.php';
               <i class="fas fa-sign-in-alt text-success me-2"></i>
               <span class="text-white">Check-ins Today</span>
             </div>
-            <div class="daily-stat-value h4 mb-0 text-success"><?php echo number_format((int)$todayCheckins); ?></div>
+            <div class="daily-stat-value h4 mb-0 text-success"><?php echo number_format($todayCheckins); ?></div>
           </div>
         </div>
         
@@ -439,7 +674,7 @@ include 'includes/header.php';
               <i class="fas fa-sign-out-alt text-danger me-2"></i>
               <span class="text-white">Check-outs Today</span>
             </div>
-            <div class="daily-stat-value h4 mb-0 text-danger"><?php echo number_format((int)$todayCheckouts); ?></div>
+            <div class="daily-stat-value h4 mb-0 text-danger"><?php echo number_format($todayCheckouts); ?></div>
           </div>
         </div>
         
@@ -449,7 +684,7 @@ include 'includes/header.php';
               <i class="fas fa-calendar-plus text-info me-2"></i>
               <span class="text-white">New Bookings Today</span>
             </div>
-            <div class="daily-stat-value h4 mb-0 text-info"><?php echo number_format((int)$todayNewBookings); ?></div>
+            <div class="daily-stat-value h4 mb-0 text-info"><?php echo number_format($todayNewBookings); ?></div>
           </div>
         </div>
         
@@ -459,7 +694,7 @@ include 'includes/header.php';
               <i class="fas fa-money-bill-wave text-warning me-2"></i>
               <span class="text-white">Today's Revenue</span>
             </div>
-            <div class="daily-stat-value h4 mb-0 text-warning">₱<?php echo number_format((float)$todayRevenue, 2); ?></div>
+            <div class="daily-stat-value h4 mb-0 text-warning">₱<?php echo number_format($todayRevenue, 2); ?></div>
           </div>
         </div>
       </div>

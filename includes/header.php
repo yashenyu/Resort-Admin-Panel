@@ -18,6 +18,16 @@ if ($current_page !== 'login.php' && !isset($_SESSION['admin'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($page_title) ? $page_title . ' - Resort Admin' : 'Resort Admin Panel'; ?></title>
     
+    <?php if($current_page === 'bookings.php'): ?>
+    <!-- Bookings Page Styles -->
+    <link href="assets/css/bookings.css" rel="stylesheet">
+    <?php endif; ?>
+    
+    <?php if($current_page === 'rooms.php'): ?>
+    <!-- Rooms Page Styles -->
+    <link href="assets/css/rooms.css" rel="stylesheet">
+    <?php endif; ?>
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     

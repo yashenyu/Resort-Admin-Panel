@@ -73,6 +73,25 @@ include 'includes/header.php';
 ?>
 
 <!-- Page title -->
+<style>
+:root {
+    --bs-body-bg: #0d1117 !important;
+    --bs-body-color: #fff !important;
+    --bs-dark: #0d1117 !important;
+    --bs-dark-rgb: 13, 17, 23 !important;
+}
+
+/* Prevent FOUC */
+html {
+    background-color: #0d1117 !important;
+}
+
+/* Override any transitions to prevent color flash */
+* {
+    transition: none !important;
+}
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Bookings</h2>
 </div>
@@ -87,18 +106,18 @@ include 'includes/header.php';
 <!-- Search and Filters -->
 <div class="stats-card mb-4">
     <form method="GET" class="row g-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="input-group">
-                <span class="input-group-text bg-dark border-dark">
+                <span class="input-group-text">
                     <i class="fas fa-search text-light"></i>
                 </span>
-                <input type="text" name="search" class="form-control bg-dark text-light border-dark" 
+                <input type="text" name="search" class="form-control" 
                        placeholder="Search bookings..." value="<?php echo htmlspecialchars($search); ?>">
             </div>
         </div>
         
         <div class="col-md-2">
-            <select name="status" class="form-select bg-dark text-light border-dark">
+            <select name="status" class="form-select">
                 <option value="">All Status</option>
                 <option value="Pending" <?php echo $status == 'Pending' ? 'selected' : ''; ?>>Pending</option>
                 <option value="Confirmed" <?php echo $status == 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
@@ -108,7 +127,7 @@ include 'includes/header.php';
         </div>
         
         <div class="col-md-2">
-            <select name="room_type" class="form-select bg-dark text-light border-dark">
+            <select name="room_type" class="form-select">
                 <option value="">All Room Types</option>
                 <?php while($rt = mysqli_fetch_assoc($room_types)): ?>
                     <option value="<?php echo htmlspecialchars($rt['room_type']); ?>" 
@@ -120,15 +139,15 @@ include 'includes/header.php';
         </div>
         
         <div class="col-md-2">
-            <input type="date" name="date_from" class="form-control bg-dark text-light border-dark" 
+            <input type="date" name="date_from" class="form-control" 
                    placeholder="From Date" value="<?php echo $date_from; ?>">
         </div>
         
-        <div class="col-md-2">
+        <div class="col-md-3">
             <div class="input-group">
-                <input type="date" name="date_to" class="form-control bg-dark text-light border-dark" 
+                <input type="date" name="date_to" class="form-control" 
                        placeholder="To Date" value="<?php echo $date_to; ?>">
-                <button type="submit" class="btn btn-secondary">Filter</button>
+                <button type="submit" class="btn btn-secondary px-4">Filter</button>
             </div>
         </div>
     </form>
@@ -221,7 +240,7 @@ include 'includes/header.php';
                         <td class="text-light"><?php echo date('M d, Y', strtotime($booking['check_out_date'])); ?></td>
                         <td class="text-light">₱<?php echo number_format($booking['total_price'], 2); ?></td>
                         <td>
-                            <select class="form-select form-select-sm bg-dark text-light border-secondary" 
+                            <select class="form-select form-select-sm" 
                                     onchange="updateStatus(<?php echo $booking['booking_id']; ?>, this.value)">
                                 <option value="Pending" <?php echo $booking['status'] == 'Pending' ? 'selected' : ''; ?>>Pending</option>
                                 <option value="Confirmed" <?php echo $booking['status'] == 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
@@ -241,70 +260,6 @@ include 'includes/header.php';
         </div>
     </div>
 </div>
-
-<style>
-/* Table Styles */
-.table {
-    --bs-table-color: #fff;
-    --bs-table-bg: #212529;
-    --bs-table-border-color: #373b3e;
-    --bs-table-striped-bg: #2c3034;
-    --bs-table-striped-color: #fff;
-    --bs-table-hover-bg: #323539;
-    --bs-table-hover-color: #fff;
-}
-
-.table th {
-    white-space: nowrap;
-    color: #fff !important;
-    font-weight: 500;
-}
-
-.table td {
-    vertical-align: middle;
-    color: #fff !important;
-}
-
-.table td .text-muted {
-    color: #adb5bd !important;
-}
-
-/* Form Controls */
-.form-control:focus, .form-select:focus {
-    background-color: #2b3035;
-    border-color: #495057;
-    color: #fff;
-    box-shadow: none;
-}
-
-.form-select {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-}
-
-.form-select option {
-    background-color: #212529;
-    color: #fff;
-}
-
-/* Alert Styles */
-.alert-success {
-    background-color: rgba(25, 135, 84, 0.1);
-    border-color: rgba(25, 135, 84, 0.2);
-    color: #198754;
-}
-
-.btn-close {
-    filter: invert(1) grayscale(100%) brightness(200%);
-}
-
-/* Stats Card */
-.stats-card {
-    background-color: #212529;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    border: 1px solid #373b3e;
-}
-</style>
 
 <script>
 function updateStatus(bookingId, newStatus) {
