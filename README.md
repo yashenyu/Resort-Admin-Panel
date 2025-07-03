@@ -19,25 +19,25 @@ A modern, responsive admin dashboard for managing resort/hotel bookings, rooms, 
 
 ## Screenshots
 
+### Login
+![Login Overview](assets/screenshots/loginpage.png)
+![Login Overview (Failed)](assets/screenshots/loginfailed.png)
+
 ### Dashboard
 ![Dashboard Overview](assets/screenshots/dashboard.png)
 ![Dashboard (Scrolled)](assets/screenshots/dashboard2.png)
 
 ### Bookings
 ![Bookings](assets/screenshots/bookings.png)
-![Bookings (Scrolled)](assets/screenshots/bookings2.png)
 
 ### Rooms
 ![Rooms](assets/screenshots/rooms.png)
-![Rooms (Scrolled)](assets/screenshots/rooms2.png)
 
 ### Users
 ![Users](assets/screenshots/users.png)
-![Users (Scrolled)](assets/screenshots/users2.png)
 
 ### Audit Logs
 ![Audit Logs](assets/screenshots/auditlogs.png)
-![Audit Logs (Scrolled)](assets/screenshots/auditlogs2.png)
 
 ### Analytics
 ![Analytics](assets/screenshots/analytics.png)
