@@ -45,7 +45,6 @@ A modern, responsive admin dashboard for managing resort/hotel bookings, rooms, 
 
 ---
 ## Info
----
 ### Prerequisites
 
 - PHP 8.x
