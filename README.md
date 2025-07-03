@@ -13,7 +13,6 @@ A modern, responsive admin dashboard for managing resort/hotel bookings, rooms, 
 - **Audit Logs**: Track admin/user actions for security and transparency.
 - **Analytics**: Visualize trends, guest demographics, and system usage.
 - **Authentication**: Secure admin login/logout.
-- **Responsive Design**: Works on desktop and mobile.
 
 ---
 
