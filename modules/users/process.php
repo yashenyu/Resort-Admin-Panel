@@ -28,7 +28,6 @@ if (!$user_id) {
 
 switch ($action) {
     case 'delete':
-        // Check if user has any bookings
         $checkBookings = mysqli_query($conn, "SELECT COUNT(*) as count FROM bookings WHERE user_id = $user_id");
         $bookingsCount = mysqli_fetch_assoc($checkBookings)['count'];
         
@@ -39,10 +38,8 @@ switch ($action) {
             ]));
         }
         
-        // Delete user
         $deleteQuery = "DELETE FROM users WHERE user_id = $user_id";
         if (mysqli_query($conn, $deleteQuery)) {
-            // Log the action
             $admin_id = $_SESSION['admin']['admin_id'];
             $log_query = "INSERT INTO audit_logs (admin_id, action, details) VALUES (
                 $admin_id,

@@ -151,7 +151,6 @@ function validate_form($data, $rules) {
     
     foreach ($rules as $field => $rule_set) {
         foreach ($rule_set as $rule) {
-            // Skip if field is not required and is empty
             if ($rule !== 'required' && !isset($data[$field]) || trim($data[$field]) === '') {
                 continue;
             }
@@ -203,7 +202,6 @@ function validate_form($data, $rules) {
                     break;
             }
             
-            // Stop validating this field if there's already an error
             if (isset($errors[$field])) {
                 break;
             }

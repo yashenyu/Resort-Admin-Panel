@@ -9,7 +9,6 @@ if (!isset($_SESSION['admin'])) {
 
 $page_title = "Dashboard";
 
-// Time period filter
 $time_period = isset($_GET['period']) ? $_GET['period'] : 'total';
 $date_condition = '';
 switch($time_period) {
@@ -23,10 +22,9 @@ switch($time_period) {
         $date_condition = "YEAR(created_at) = YEAR(CURDATE())";
         break;
     default:
-        $date_condition = "1=1"; // total (all time)
+        $date_condition = "1=1"; 
 }
 
-// Total Bookings with status breakdown
 $bookingStats = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT 
         COUNT(*) as total,
@@ -41,7 +39,6 @@ $activeBookings = $bookingStats['active'];
 $completedBookings = $bookingStats['completed'];
 $cancelledBookings = $bookingStats['cancelled'];
 
-// Total Revenue with monthly comparison
 $currentMonth = date('Y-m');
 $lastMonth = date('Y-m', strtotime('-1 month'));
 
@@ -67,7 +64,6 @@ $lastMonthRevenue = $revenueStats['last_period_revenue'] ?? 0;
 $revenueGrowth = $lastMonthRevenue > 0 ? 
     round((($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1) : 0;
 
-// Occupancy Rate with detailed room status
 $roomStats = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT 
         COUNT(DISTINCT r.room_id) as total_rooms,
@@ -84,12 +80,10 @@ $totalRooms = $roomStats['total_rooms'];
 $occupiedRooms = $roomStats['occupied_rooms'];
 $occupancyRate = $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 2) : 0;
 
-// Debug occupancy calculation
 error_log("Occupancy Debug - Total Rooms: " . $totalRooms);
 error_log("Occupancy Debug - Occupied Rooms: " . $occupiedRooms);
 error_log("Occupancy Debug - Rate: " . $occupancyRate . "%");
 
-// Get detailed room status for verification
 $roomDetails = mysqli_query($conn, "
     SELECT 
         r.room_id,
@@ -105,7 +99,6 @@ $roomDetails = mysqli_query($conn, "
     ORDER BY r.room_id
 ");
 
-// Debug room status
 while ($room = mysqli_fetch_assoc($roomDetails)) {
     error_log(sprintf(
         "Room Debug - ID: %s, Number: %s, Booking: %s, Check-in: %s, Check-out: %s, Status: %s",
@@ -118,7 +111,6 @@ while ($room = mysqli_fetch_assoc($roomDetails)) {
     ));
 }
 
-// Bookings per Month for multiple years
 $currentYear = date('Y');
 $bookingTrendsQuery = "
     SELECT 
@@ -138,11 +130,9 @@ if (!$bookingTrends) {
     echo "<!-- Debug: MySQL Error: " . mysqli_error($conn) . " -->";
     $yearlyData = [];
 } else {
-    // Initialize arrays for storing the data
     $yearlyData = [];
     $years = [];
     
-    // First pass: collect all years
     while ($row = mysqli_fetch_assoc($bookingTrends)) {
         $year = $row['year'];
         if (!in_array($year, $years)) {
@@ -150,21 +140,16 @@ if (!$bookingTrends) {
         }
     }
     
-    // Sort years in descending order
     rsort($years);
     
-    // Take only the last 5 years if we have more
     $years = array_slice($years, 0, 5);
     
-    // Initialize data for each year
     foreach ($years as $year) {
         $yearlyData[$year] = array_fill(0, 12, 0);
     }
     
-    // Reset pointer to beginning of result set
     mysqli_data_seek($bookingTrends, 0);
     
-    // Second pass: populate the data
     while ($row = mysqli_fetch_assoc($bookingTrends)) {
         $year = $row['year'];
         if (in_array($year, $years)) {
@@ -177,14 +162,13 @@ if (!$bookingTrends) {
 echo "<!-- Debug: Years found: " . json_encode($years) . " -->";
 echo "<!-- Debug: Yearly Data: " . json_encode($yearlyData) . " -->";
 
-// Prepare datasets for Chart.js
 $datasets = [];
 $colors = [
-    '#F78166', // Primary (Coral)
-    '#58A6FF', // Info (Blue)
-    '#7EE787', // Success (Green)
-    '#FF7B72', // Danger (Red)
-    '#1a1d21'  // Muted (Gray)
+    '#F78166',
+    '#58A6FF',
+    '#7EE787', 
+    '#FF7B72', 
+    '#1a1d21'  
 ];
 
 foreach ($yearlyData as $year => $counts) {
@@ -202,7 +186,6 @@ foreach ($yearlyData as $year => $counts) {
 
 echo "<!-- Debug: Final Datasets: " . json_encode($datasets) . " -->";
 
-// Popular Room Types with revenue
 $roomTypeQuery = "
     SELECT 
         r.room_type,
@@ -246,7 +229,6 @@ if (!$roomTypeData) {
     ]) . " -->";
 }
 
-// Recent Activities
 $recentActivities = mysqli_query($conn, "
     SELECT 
         l.*,
@@ -257,7 +239,6 @@ $recentActivities = mysqli_query($conn, "
     ORDER BY l.timestamp DESC LIMIT 5
 ");
 
-// Today's Overview
 $today = date('Y-m-d');
 $todayStats = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT 
@@ -273,7 +254,6 @@ $todayCheckouts = $todayStats['checkouts'] ?? 0;
 $todayNewBookings = $todayStats['new_bookings'] ?? 0;
 $todayRevenue = $todayStats['today_revenue'] ?? 0;
 
-// Include Chart.js in extra_js
 $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -338,7 +318,6 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 ';
 
-// After preparing the datasets, before the HTML
 echo "<!-- Debug Data -->";
 echo "<!-- Years Data: " . json_encode($yearlyData) . " -->";
 echo "<!-- Datasets: " . json_encode($datasets) . " -->";
@@ -347,7 +326,6 @@ echo "<!-- Room Counts: " . json_encode($roomCounts) . " -->";
 
 $months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-// After preparing all the data, before including header.php
 echo "
 <script>
 // Debug data objects
@@ -385,25 +363,20 @@ include 'includes/header.php';
 
 <style>
 :root {
-  /* Primary Colors */
   --primary-color: #F78166;
   --primary-light: rgba(247, 129, 102, 0.1);
   
-  /* Background Colors */
   --bg-dark: #1a1d21;
   --bg-darker: #212529;
   --bg-card: #2c3034;
   
-  /* Text Colors */
   --text-primary: #e0e0e0;
   --text-secondary: #8b949e;
   --text-muted: #6c757d;
   
-  /* Border Colors */
   --border-color: rgba(255, 255, 255, 0.1);
   --border-hover: #495057;
   
-  /* Status Colors */
   --success-color: #7EE787;
   --danger-color: #FF7B72;
   --warning-color: #f6b93b;
@@ -457,7 +430,6 @@ include 'includes/header.php';
   color: var(--danger-color) !important;
 }
 
-/* Activity List Styles */
 .activity-list {
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
@@ -487,7 +459,6 @@ include 'includes/header.php';
   font-size: 0.75rem;
 }
 
-/* Chart Containers */
 .chart-container {
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
@@ -496,7 +467,6 @@ include 'includes/header.php';
   margin-top: 24px;
 }
 
-/* Button Styles */
 .btn-group .btn {
   border: 1px solid var(--border-color);
   padding: 0.5rem 1rem;
@@ -515,7 +485,6 @@ include 'includes/header.php';
   border-color: var(--primary-color);
 }
 
-/* Daily Stats */
 .daily-stat-item {
   background: var(--bg-darker);
   border: 1px solid var(--border-color);
@@ -787,17 +756,13 @@ include 'includes/header.php';
 </div>
 
 <script>
-// Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== Dashboard Initialization Started ===');
     
-    // Log debug data
     window.logDebugData();
     
-    // Check if Chart.js is loaded
     console.log('Chart.js status:', typeof Chart !== 'undefined' ? 'Loaded' : 'Not loaded');
     
-    // Check canvas elements
     const bookingTrendsCtx = document.getElementById('bookingTrends');
     const roomTypeCtx = document.getElementById('roomTypeChart');
     
@@ -806,7 +771,6 @@ document.addEventListener('DOMContentLoaded', function() {
         roomTypeChart: roomTypeCtx ? 'Found' : 'Not found'
     });
     
-    // Verify data before chart creation
     console.log('=== Chart Data Verification ===');
     console.log('Booking Trends Data:', {
         labels: window.debugData.months,

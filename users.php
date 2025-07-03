@@ -7,10 +7,8 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Manage Users";
 
-// Add CSS file reference
 $extra_css = '<link href="assets/css/users.css" rel="stylesheet">';
 
-// Get sorting parameters
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
 $allowed_columns = ['first_name', 'last_name', 'email', 'contact_number', 'gender', 'created_at'];
@@ -18,11 +16,9 @@ if (!in_array($sort_column, $allowed_columns)) {
     $sort_column = 'created_at';
 }
 
-// Get filter parameters
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $gender_filter = isset($_GET['gender']) ? mysqli_real_escape_string($conn, $_GET['gender']) : '';
 
-// Build the query
 $query = "SELECT * FROM users WHERE 1=1";
 
 if ($search) {
@@ -40,7 +36,6 @@ $query .= " ORDER BY $sort_column $sort_order";
 
 $result = mysqli_query($conn, $query);
 
-// Get user statistics
 $totalUsers = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM users"))['count'];
 $activeUsers = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT COUNT(DISTINCT user_id) as count 
@@ -288,7 +283,6 @@ function deleteUser(userId) {
 </script>
 
 <style>
-/* Page Title */
 .page-title {
     position: relative;
     display: inline-block;
@@ -305,7 +299,6 @@ function deleteUser(userId) {
     border-radius: 2px;
 }
 
-/* Table Styles */
 .table {
     --bs-table-color: #e9ecef;
     --bs-table-bg: #212529;
@@ -331,7 +324,6 @@ function deleteUser(userId) {
     color: #adb5bd !important;
 }
 
-/* Form Controls */
 .form-control, .form-select {
     color: #e9ecef;
     background-color: #2b3035;
@@ -359,7 +351,6 @@ function deleteUser(userId) {
     padding: 8px;
 }
 
-/* Stats Card */
 .stats-card {
     background-color: #212529;
     border-radius: 0.5rem;
@@ -381,7 +372,6 @@ function deleteUser(userId) {
     color: #adb5bd !important;
 }
 
-/* Button Styles */
 .btn-secondary {
     background-color: #495057;
     border-color: #495057;
@@ -398,12 +388,10 @@ function deleteUser(userId) {
     color: #ffffff;
 }
 
-/* Input Group */
 .input-group-text {
     color: #e9ecef;
 }
 
-/* Badge */
 .badge.bg-secondary {
     background-color: #495057 !important;
     color: #e9ecef;

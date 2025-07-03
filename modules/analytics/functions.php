@@ -310,9 +310,6 @@ function get_booking_trends($months = 12) {
         $actual[] = (int)$row['bookings'];
     }
     
-    // Simple linear regression for forecasting
-    // This is a simplified implementation - in a real-world scenario,
-    // you might want to use a more sophisticated forecasting algorithm
     $forecast = [];
     $n = count($actual);
     
@@ -338,13 +335,11 @@ function get_booking_trends($months = 12) {
             $forecast[] = $intercept + $slope * $x[$i];
         }
         
-        // Add 3 more months of forecast
         for ($i = $n + 1; $i <= $n + 3; $i++) {
             $newForecast = $intercept + $slope * $i;
-            $forecast[] = max(0, $newForecast); // Ensure no negative forecasts
-            $actual[] = null; // No actual data for future months
+            $forecast[] = max(0, $newForecast); 
+            $actual[] = null; 
             
-            // Calculate the next month
             $lastMonth = end($months);
             list($year, $month) = explode('-', $lastMonth);
             $month = (int)$month + 1;

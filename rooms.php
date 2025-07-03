@@ -7,7 +7,6 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Manage Rooms";
 
-// Fetch all rooms with their current status
 $roomsQuery = "
     SELECT r.*, 
            COALESCE(b.current_bookings, 0) as current_bookings,
@@ -26,7 +25,6 @@ $roomsQuery = "
 
 $rooms = mysqli_query($conn, $roomsQuery);
 
-// Group rooms by type
 $roomsByType = [];
 while($room = mysqli_fetch_assoc($rooms)) {
     if (!isset($roomsByType[$room['room_type']])) {
@@ -103,7 +101,6 @@ include 'includes/header.php';
 <?php endforeach; ?>
 
 <style>
-/* Page Title */
 .page-title {
     position: relative;
     display: inline-block;
@@ -116,7 +113,6 @@ include 'includes/header.php';
     border-radius: 2px;
 }
 
-/* Room Section Styles */
 .room-type-section {
     background-color: #2c3034;
     border-radius: 0.75rem;
@@ -124,7 +120,6 @@ include 'includes/header.php';
     border: 1px solid #373b3e;
 }
 
-/* Room Card Styles */
 .room-card {
     background-color: #212529;
     border-radius: 0.5rem;
@@ -150,7 +145,6 @@ include 'includes/header.php';
     text-align: center;
 }
 
-/* Status Select Styles */
 .status-select {
     font-size: 0.75rem;
     min-width: 100px;
@@ -172,7 +166,6 @@ include 'includes/header.php';
     padding: 4px 8px;
 }
 
-/* Form Select Custom Arrow */
 .form-select {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
     padding-right: 24px;
@@ -185,7 +178,6 @@ function updateRoomStatus(roomId, newStatus) {
     formData.append('room_id', roomId);
     formData.append('status', newStatus);
 
-    // Show warning if room has future bookings
     if (document.querySelector(`[data-room-id="${roomId}"]`).dataset.hasBookings === "1") {
         if (!confirm('Warning: This room has future bookings. Are you sure you want to change its status?')) {
             location.reload();

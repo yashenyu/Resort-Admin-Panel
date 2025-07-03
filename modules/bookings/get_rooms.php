@@ -2,7 +2,6 @@
 include '../../db_connect.php';
 session_start();
 
-// Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -18,7 +17,6 @@ if (!isset($_GET['type'])) {
 
 $room_type = mysqli_real_escape_string($conn, $_GET['type']);
 
-// Log the query for debugging
 $query_string = "
     SELECT room_id, room_number, room_type
     FROM rooms 

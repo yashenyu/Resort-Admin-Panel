@@ -1,5 +1,4 @@
 <?php
-// db_connect.php must establish a MySQL connection in $conn
 include 'db_connect.php';
 session_start();
 
@@ -10,9 +9,7 @@ if (!isset($_SESSION['admin'])) {
 
 $page_title = "Analytics";
 
-// =====================
-// 1. Get Booking Data by Year and Month
-// =====================
+
 $bookingsQuery = "
   SELECT 
     YEAR(check_in_date) AS year,
@@ -29,7 +26,6 @@ $bookingsResult = mysqli_query($conn, $bookingsQuery);
 $yearlyData = [];
 $availableYears = [];
 
-// Initialize arrays for all months (1-12) for each year
 if ($bookingsResult && mysqli_num_rows($bookingsResult) > 0) {
     while ($row = mysqli_fetch_assoc($bookingsResult)) {
         $year = $row['year'];
@@ -52,12 +48,9 @@ if ($bookingsResult && mysqli_num_rows($bookingsResult) > 0) {
     }
 }
 
-// Sort years in ascending order
 sort($availableYears);
 
-// =====================
-// 2. Booking Classification
-// =====================
+
 $classQuery = "SELECT status, COUNT(*) AS total 
                FROM bookings 
                WHERE status IN ('Cancelled', 'Completed', 'Pending') 
@@ -70,9 +63,7 @@ while ($row = mysqli_fetch_assoc($classResult)) {
   $classCounts[] = $row['total'];
 }
 
-// =====================
-// 3. Guest Segmentation
-// =====================
+
 $clusterQuery = "
   SELECT CASE 
       WHEN guests = 1 THEN 'Solo Travelers'
@@ -90,9 +81,7 @@ while ($row = mysqli_fetch_assoc($clusterResult)) {
   $segmentCounts[] = $row['total'];
 }
 
-// =====================
-// 4. Browser Analytics
-// =====================
+
 $browserQuery = "
   SELECT browser, COUNT(*) as count 
   FROM analytics 
@@ -104,7 +93,6 @@ $browserData = [];
 $browserTotal = 0;
 $browserPercentages = [];
 
-// First, get total for percentage calculation
 $totalQuery = "SELECT COUNT(*) as total FROM analytics";
 $totalResult = mysqli_query($conn, $totalQuery);
 $totalRow = mysqli_fetch_assoc($totalResult);
@@ -116,9 +104,7 @@ while ($row = mysqli_fetch_assoc($browserResult)) {
   $browserPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
 }
 
-// =====================
-// 5. OS Analytics
-// =====================
+
 $osQuery = "
   SELECT os, COUNT(*) as count 
   FROM analytics 
@@ -135,9 +121,6 @@ while ($row = mysqli_fetch_assoc($osResult)) {
   $osPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
 }
 
-// =====================
-// 6. Location Analytics
-// =====================
 $locationQuery = "
   SELECT location, COUNT(*) as count 
   FROM analytics 
@@ -154,9 +137,6 @@ while ($row = mysqli_fetch_assoc($locationResult)) {
   $locationPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
 }
 
-// =====================
-// 7. Processor Analytics
-// =====================
 $processorQuery = "
   SELECT processor, COUNT(*) as count 
   FROM analytics 
@@ -173,7 +153,6 @@ while ($row = mysqli_fetch_assoc($processorResult)) {
   $processorPercentages[] = round(($row['count'] / $totalVisitors) * 100, 1);
 }
 
-// Include required JS libraries
 $extra_js = '
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
@@ -301,7 +280,6 @@ include 'includes/header.php';
   --info-color: #58A6FF;
 }
 
-/* Main Layout */
 .analytics-container {
   display: flex;
   flex-direction: column;
@@ -320,7 +298,6 @@ include 'includes/header.php';
   width: 100%;
 }
 
-/* Page Title */
 .page-title {
   padding: 32px 16px 16px;
   background: var(--card-bg);
@@ -336,7 +313,6 @@ include 'includes/header.php';
   letter-spacing: -0.5px;
 }
 
-/* Cards */
 .analytics-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -366,7 +342,6 @@ include 'includes/header.php';
   letter-spacing: -0.25px;
 }
 
-/* Chart Containers */
 .chart-container {
   background: var(--card-bg);
   border-radius: 8px;
@@ -387,7 +362,6 @@ include 'includes/header.php';
   height: 300px;
 }
 
-/* Year Toggle Buttons */
 .year-toggle {
   display: flex;
   gap: 4px;
@@ -419,7 +393,6 @@ include 'includes/header.php';
   font-weight: 500;
 }
 
-/* Regression Info */
 .regression-info {
   margin-top: 24px;
   padding: 16px;
@@ -441,7 +414,6 @@ include 'includes/header.php';
   line-height: 1.5;
 }
 
-/* Responsive Design */
 @media (max-width: 1200px) {
   .analytics-top-row {
     grid-template-columns: 1fr;
@@ -502,7 +474,6 @@ include 'includes/header.php';
   }
 }
 
-/* Add after existing styles */
 .analytics-system-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -523,7 +494,6 @@ include 'includes/header.php';
   }
 }
 
-/* Add these new styles */
 .analytics-card-subtitle {
   color: var(--text-secondary);
   font-size: 0.875rem;
@@ -543,7 +513,6 @@ include 'includes/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // Data from PHP
   const yearlyData = <?php echo json_encode($yearlyData); ?>;
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
@@ -561,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const intercept = result.equation[1];
     const r2 = result.r2;
     
-    // Regression points for the actual data
     const regressionPoints = result.points.map(p => Math.round(p[1]));
     
     return {
@@ -667,7 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     
-    // Update regression info with enhanced styling
     const eqn = `y = ${regression.slope.toFixed(2)}x + ${regression.intercept.toFixed(2)} (R² = ${regression.r2.toFixed(3)})`;
     document.getElementById('regressionResults').innerHTML = `<strong>Regression Equation:</strong> ${eqn}`;
     
@@ -768,12 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Initial chart renders with the latest year
   const latestYear = <?php echo end($availableYears); ?>;
   updateTrendChart(latestYear);
   updateRevenueChart(latestYear);
   
-  // Enhanced click handlers for better user feedback
   function handleYearButtonClick(button, toggleId, updateFunction) {
     const buttons = document.querySelectorAll(`#${toggleId} .year-btn`);
     buttons.forEach(btn => {
@@ -798,7 +763,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   
-  // Enhanced Classification Chart
   const classCtx = document.getElementById('classificationChart').getContext('2d');
   new Chart(classCtx, {
     type: 'doughnut',
@@ -842,7 +806,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Browser Usage Chart
   const browserCtx = document.getElementById('browserChart').getContext('2d');
   new Chart(browserCtx, {
     type: 'doughnut',
@@ -895,7 +858,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Operating System Chart
   const osCtx = document.getElementById('osChart').getContext('2d');
   new Chart(osCtx, {
     type: 'doughnut',
@@ -948,7 +910,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Geographic Distribution Chart
   const locationCtx = document.getElementById('locationChart').getContext('2d');
   new Chart(locationCtx, {
     type: 'bar',
@@ -967,7 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      indexAxis: 'y',  // Make it a horizontal bar chart
+      indexAxis: 'y',  
       plugins: {
         legend: { 
           display: false
@@ -1015,7 +976,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Processor Types Chart
   const processorCtx = document.getElementById('processorChart').getContext('2d');
   new Chart(processorCtx, {
     type: 'bar',

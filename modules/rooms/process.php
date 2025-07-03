@@ -2,13 +2,11 @@
 include '../../db_connect.php';
 session_start();
 
-// Check if it's a POST request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);
     exit;
 }
 
-// Get POST data
 $room_id = isset($_POST['room_id']) ? intval($_POST['room_id']) : 0;
 $new_status = isset($_POST['status']) ? mysqli_real_escape_string($conn, $_POST['status']) : '';
 
@@ -17,13 +15,11 @@ if (!$room_id || !$new_status) {
     exit;
 }
 
-// Validate status
 if (!in_array($new_status, ['Available', 'Booked', 'Maintenance'])) {
     echo json_encode(['success' => false, 'message' => 'Invalid status']);
     exit;
 }
 
-// Check for active bookings (for logging purposes only)
 $active_bookings = mysqli_query($conn, "
     SELECT COUNT(*) as count 
     FROM bookings 
@@ -33,7 +29,6 @@ $active_bookings = mysqli_query($conn, "
 ");
 $booking_count = mysqli_fetch_assoc($active_bookings)['count'];
 
-// Update the room status
 $update = mysqli_query($conn, "
     UPDATE rooms 
     SET status = '$new_status'
@@ -41,7 +36,6 @@ $update = mysqli_query($conn, "
 ");
 
 if ($update) {
-    // Log the action with booking information
     $log_action = mysqli_real_escape_string($conn, "Changed room #$room_id status to $new_status" . 
                  ($booking_count > 0 ? " (with $booking_count active/upcoming bookings)" : ""));
     mysqli_query($conn, "INSERT INTO audit_logs (action, timestamp) VALUES ('$log_action', NOW())");

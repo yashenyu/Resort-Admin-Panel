@@ -159,7 +159,6 @@ function toggle_room_status($room_id) {
     
     $room_id = (int)$room_id;
     
-    // Get current status
     $room = get_room($room_id);
     if (!$room) {
         return false;
@@ -194,7 +193,6 @@ function update_room($room_id, $data) {
     
     $room_id = (int)$room_id;
     
-    // Sanitize inputs
     $room_type = sanitize($data['room_type']);
     $room_number = sanitize($data['room_number']);
     $description = sanitize($data['description']);
@@ -202,7 +200,6 @@ function update_room($room_id, $data) {
     $capacity = (int)$data['capacity'];
     $is_active = isset($data['is_active']) ? 1 : 0;
     
-    // Validate room number uniqueness (except for current room)
     $query = "
         SELECT room_id FROM rooms
         WHERE room_number = '$room_number' AND room_id != $room_id
@@ -210,7 +207,7 @@ function update_room($room_id, $data) {
     
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
-        return false; // Room number already exists
+        return false;
     }
     
     $query = "
@@ -241,7 +238,6 @@ function update_room($room_id, $data) {
 function add_room($data) {
     global $conn;
     
-    // Sanitize inputs
     $room_type = sanitize($data['room_type']);
     $room_number = sanitize($data['room_number']);
     $description = sanitize($data['description']);
@@ -249,7 +245,6 @@ function add_room($data) {
     $capacity = (int)$data['capacity'];
     $is_active = isset($data['is_active']) ? 1 : 0;
     
-    // Validate room number uniqueness
     $query = "
         SELECT room_id FROM rooms
         WHERE room_number = '$room_number'
@@ -257,7 +252,7 @@ function add_room($data) {
     
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
-        return false; // Room number already exists
+        return false; 
     }
     
     $query = "
@@ -289,19 +284,16 @@ function get_room_stats() {
         'average_price' => 0,
     ];
     
-    // Total Rooms
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM rooms");
     if ($result) {
         $stats['total_rooms'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // Active Rooms
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM rooms WHERE is_active = 1");
     if ($result) {
         $stats['active_rooms'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // Occupied Rooms
     $result = mysqli_query($conn, "
         SELECT COUNT(DISTINCT room_id) AS occupied 
         FROM bookings 
@@ -311,7 +303,6 @@ function get_room_stats() {
         $stats['occupied_rooms'] = (int)mysqli_fetch_assoc($result)['occupied'];
     }
     
-    // Average Price
     $result = mysqli_query($conn, "SELECT AVG(price_per_night) AS avg_price FROM rooms");
     if ($result) {
         $stats['average_price'] = round((float)mysqli_fetch_assoc($result)['avg_price'], 2);
@@ -371,7 +362,6 @@ function is_room_available($room_id, $check_in, $check_out, $booking_id = null) 
         )
     ";
     
-    // Exclude current booking if updating
     if ($booking_id) {
         $booking_id = (int)$booking_id;
         $query .= " AND booking_id != $booking_id";

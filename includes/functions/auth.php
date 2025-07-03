@@ -53,19 +53,15 @@ function authenticate($username, $password) {
  * Log out the current user
  */
 function logout() {
-    // Log the logout if user is authenticated
     if (is_authenticated() && isset($_SESSION['admin_id'])) {
         log_activity($_SESSION['admin_id'], 'Logged out');
     }
     
-    // Destroy the session
     session_unset();
     session_destroy();
     
-    // Ensure session data is completely removed
     $_SESSION = array();
     
-    // If using cookies, clear them too
     if (ini_get("session.use_cookies")) {
         $params = session_get_cookie_params();
         setcookie(session_name(), '', time() - 42000,

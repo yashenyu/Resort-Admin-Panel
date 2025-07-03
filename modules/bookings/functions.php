@@ -16,7 +16,6 @@
 function get_bookings($filters = [], $limit = 0, $offset = 0) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT b.*, r.room_type, r.room_number,
                CONCAT(u.first_name, ' ', u.last_name) AS customer_name
@@ -26,7 +25,6 @@ function get_bookings($filters = [], $limit = 0, $offset = 0) {
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['status']) && $filters['status']) {
             $status = sanitize($filters['status']);
@@ -55,24 +53,20 @@ function get_bookings($filters = [], $limit = 0, $offset = 0) {
         }
     }
     
-    // Order by
     $query .= " ORDER BY b.created_at DESC";
     
-    // Add limit if specified
     if ($limit > 0) {
         $offset = (int)$offset;
         $limit = (int)$limit;
         $query .= " LIMIT $offset, $limit";
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {
         return [];
     }
     
-    // Fetch all bookings
     $bookings = [];
     while ($row = mysqli_fetch_assoc($result)) {
         $bookings[] = $row;
@@ -90,7 +84,6 @@ function get_bookings($filters = [], $limit = 0, $offset = 0) {
 function count_bookings($filters = []) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT COUNT(*) as total
         FROM bookings b
@@ -99,7 +92,6 @@ function count_bookings($filters = []) {
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['status']) && $filters['status']) {
             $status = sanitize($filters['status']);
@@ -128,7 +120,6 @@ function count_bookings($filters = []) {
         }
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {
@@ -208,13 +199,11 @@ function update_booking($booking_id, $data) {
     
     $booking_id = (int)$booking_id;
     
-    // Sanitize inputs
     $status = sanitize($data['status']);
     $check_in = sanitize($data['check_in_date']);
     $check_out = sanitize($data['check_out_date']);
     $guests = (int)$data['guests'];
     
-    // Validate booking dates
     $booking = get_booking($booking_id);
     if (!$booking) {
         return false;
@@ -227,10 +216,8 @@ function update_booking($booking_id, $data) {
         return false;
     }
     
-    // Calculate number of nights
     $nights = (strtotime($check_out) - strtotime($check_in)) / (60 * 60 * 24);
     
-    // Calculate total price
     $total_price = $booking['price_per_night'] * $nights;
     
     $query = "
@@ -286,25 +273,21 @@ function get_booking_stats() {
         'occupancy_rate' => 0,
     ];
     
-    // Total Bookings
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM bookings");
     if ($result) {
         $stats['total_bookings'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // Active Bookings
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM bookings WHERE status = 'Confirmed'");
     if ($result) {
         $stats['active_bookings'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // Total Revenue
     $result = mysqli_query($conn, "SELECT SUM(total_price) AS revenue FROM bookings WHERE status IN ('Confirmed', 'Completed')");
     if ($result) {
         $stats['total_revenue'] = (float)mysqli_fetch_assoc($result)['revenue'];
     }
     
-    // Occupancy Rate
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM rooms");
     if ($result) {
         $total_rooms = (int)mysqli_fetch_assoc($result)['total'];

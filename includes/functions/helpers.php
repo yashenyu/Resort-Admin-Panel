@@ -116,7 +116,6 @@ function get_pagination($total_records, $records_per_page, $current_page, $url_p
     
     $html = '<nav aria-label="Page navigation"><ul class="pagination">';
     
-    // Previous button
     if ($current_page > 1) {
         $prev_url = str_replace(':page', $current_page - 1, $url_pattern);
         $html .= '<li class="page-item"><a class="page-link" href="' . $prev_url . '" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a></li>';
@@ -124,7 +123,6 @@ function get_pagination($total_records, $records_per_page, $current_page, $url_p
         $html .= '<li class="page-item disabled"><a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a></li>';
     }
     
-    // Page numbers
     $start_page = max(1, $current_page - 2);
     $end_page = min($total_pages, $current_page + 2);
     
@@ -134,7 +132,6 @@ function get_pagination($total_records, $records_per_page, $current_page, $url_p
         $html .= '<li class="page-item ' . $active . '"><a class="page-link" href="' . $page_url . '">' . $i . '</a></li>';
     }
     
-    // Next button
     if ($current_page < $total_pages) {
         $next_url = str_replace(':page', $current_page + 1, $url_pattern);
         $html .= '<li class="page-item"><a class="page-link" href="' . $next_url . '" aria-label="Next"><span aria-hidden="true">&raquo;</span></a></li>';

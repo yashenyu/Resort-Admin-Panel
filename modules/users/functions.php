@@ -16,7 +16,6 @@
 function get_users($filters = [], $limit = 0, $offset = 0) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT u.*,
                (SELECT COUNT(*) FROM bookings WHERE user_id = u.user_id) AS total_bookings
@@ -24,7 +23,6 @@ function get_users($filters = [], $limit = 0, $offset = 0) {
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['search']) && $filters['search']) {
             $search = sanitize($filters['search']);
@@ -37,24 +35,20 @@ function get_users($filters = [], $limit = 0, $offset = 0) {
         }
     }
     
-    // Order by
     $query .= " ORDER BY u.last_name, u.first_name";
     
-    // Add limit if specified
     if ($limit > 0) {
         $offset = (int)$offset;
         $limit = (int)$limit;
         $query .= " LIMIT $offset, $limit";
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {
         return [];
     }
     
-    // Fetch all users
     $users = [];
     while ($row = mysqli_fetch_assoc($result)) {
         $users[] = $row;
@@ -72,14 +66,12 @@ function get_users($filters = [], $limit = 0, $offset = 0) {
 function count_users($filters = []) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT COUNT(*) as total
         FROM users u
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['search']) && $filters['search']) {
             $search = sanitize($filters['search']);
@@ -92,7 +84,6 @@ function count_users($filters = []) {
         }
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {
@@ -175,13 +166,11 @@ function update_user($user_id, $data) {
     
     $user_id = (int)$user_id;
     
-    // Sanitize inputs
     $first_name = sanitize($data['first_name']);
     $last_name = sanitize($data['last_name']);
     $email = sanitize($data['email']);
     $phone = sanitize($data['phone']);
     
-    // Validate email uniqueness (except for current user)
     $query = "
         SELECT user_id FROM users
         WHERE email = '$email' AND user_id != $user_id
@@ -189,7 +178,7 @@ function update_user($user_id, $data) {
     
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
-        return false; // Email already exists
+        return false;
     }
     
     $query = "
@@ -218,14 +207,12 @@ function update_user($user_id, $data) {
 function add_user($data) {
     global $conn;
     
-    // Sanitize inputs
     $first_name = sanitize($data['first_name']);
     $last_name = sanitize($data['last_name']);
     $email = sanitize($data['email']);
     $phone = sanitize($data['phone']);
     $password = password_hash($data['password'], PASSWORD_DEFAULT);
     
-    // Validate email uniqueness
     $query = "
         SELECT user_id FROM users
         WHERE email = '$email'
@@ -233,7 +220,7 @@ function add_user($data) {
     
     $result = mysqli_query($conn, $query);
     if (mysqli_num_rows($result) > 0) {
-        return false; // Email already exists
+        return false;
     }
     
     $query = "
@@ -264,13 +251,11 @@ function get_user_stats() {
         'active_users' => 0,
     ];
     
-    // Total Users
     $result = mysqli_query($conn, "SELECT COUNT(*) AS total FROM users");
     if ($result) {
         $stats['total_users'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // New Users This Month
     $current_month = date('Y-m-01');
     $result = mysqli_query($conn, "
         SELECT COUNT(*) AS total 
@@ -281,7 +266,6 @@ function get_user_stats() {
         $stats['new_users_month'] = (int)mysqli_fetch_assoc($result)['total'];
     }
     
-    // Active Users (users with confirmed bookings)
     $result = mysqli_query($conn, "
         SELECT COUNT(DISTINCT user_id) AS total 
         FROM bookings 

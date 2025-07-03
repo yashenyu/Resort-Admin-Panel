@@ -16,7 +16,6 @@
 function get_logs($filters = [], $limit = 0, $offset = 0) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT l.*, CONCAT(u.first_name, ' ', u.last_name) as user_name
         FROM logs l
@@ -24,7 +23,6 @@ function get_logs($filters = [], $limit = 0, $offset = 0) {
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['user_id']) && $filters['user_id']) {
             $user_id = (int)$filters['user_id'];
@@ -47,24 +45,20 @@ function get_logs($filters = [], $limit = 0, $offset = 0) {
         }
     }
     
-    // Order by
     $query .= " ORDER BY l.timestamp DESC";
     
-    // Add limit if specified
     if ($limit > 0) {
         $offset = (int)$offset;
         $limit = (int)$limit;
         $query .= " LIMIT $offset, $limit";
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {
         return [];
     }
     
-    // Fetch all logs
     $logs = [];
     while ($row = mysqli_fetch_assoc($result)) {
         $logs[] = $row;
@@ -82,7 +76,6 @@ function get_logs($filters = [], $limit = 0, $offset = 0) {
 function count_logs($filters = []) {
     global $conn;
     
-    // Build query
     $query = "
         SELECT COUNT(*) as total
         FROM logs l
@@ -90,7 +83,6 @@ function count_logs($filters = []) {
         WHERE 1=1
     ";
     
-    // Add filters
     if (!empty($filters)) {
         if (isset($filters['user_id']) && $filters['user_id']) {
             $user_id = (int)$filters['user_id'];
@@ -113,7 +105,6 @@ function count_logs($filters = []) {
         }
     }
     
-    // Execute query
     $result = mysqli_query($conn, $query);
     
     if (!$result) {

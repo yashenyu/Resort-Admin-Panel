@@ -31,7 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-// Custom CSS for login page
 $extra_css = '
 <style>
   body {

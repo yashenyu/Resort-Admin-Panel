@@ -7,7 +7,6 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Manage Bookings";
 
-// Get filter parameters
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $status = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
 $room_type = isset($_GET['room_type']) ? mysqli_real_escape_string($conn, $_GET['room_type']) : '';
@@ -16,7 +15,6 @@ $date_to = isset($_GET['date_to']) ? mysqli_real_escape_string($conn, $_GET['dat
 $sort = isset($_GET['sort']) ? mysqli_real_escape_string($conn, $_GET['sort']) : 'created_at';
 $order = isset($_GET['order']) ? mysqli_real_escape_string($conn, $_GET['order']) : 'DESC';
 
-// Build the WHERE clause
 $where_clauses = [];
 if ($search) {
     $where_clauses[] = "(b.booking_id LIKE '%$search%' 
@@ -40,10 +38,8 @@ if ($date_to) {
 
 $where_clause = $where_clauses ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
 
-// Get room types for filter dropdown
 $room_types = mysqli_query($conn, "SELECT DISTINCT room_type FROM rooms ORDER BY room_type");
 
-// Get total records (keep this for record count display)
 $total_query = mysqli_query($conn, "
     SELECT COUNT(*) as total 
     FROM bookings b
@@ -53,7 +49,6 @@ $total_query = mysqli_query($conn, "
 ");
 $total_records = mysqli_fetch_assoc($total_query)['total'];
 
-// Get all bookings with filters (removed pagination)
 $bookings = mysqli_query($conn, "
     SELECT 
         b.*, 
@@ -81,12 +76,10 @@ include 'includes/header.php';
     --bs-dark-rgb: 13, 17, 23 !important;
 }
 
-/* Prevent FOUC */
 html {
     background-color: #0d1117 !important;
 }
 
-/* Override any transitions to prevent color flash */
 * {
     transition: none !important;
 }

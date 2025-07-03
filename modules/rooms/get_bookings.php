@@ -9,7 +9,6 @@ if (!$room_id) {
     exit;
 }
 
-// First get the room details
 $room_query = "SELECT * FROM rooms WHERE room_id = $room_id";
 $room_result = mysqli_query($conn, $room_query);
 
@@ -20,7 +19,6 @@ if (!$room_result || mysqli_num_rows($room_result) === 0) {
 
 $room_details = mysqli_fetch_assoc($room_result);
 
-// Then get future bookings for this room
 $bookings_query = "
     SELECT b.booking_id, b.check_in_date, b.check_out_date,
            CONCAT(u.first_name, ' ', u.last_name) as guest_name

@@ -1,10 +1,8 @@
 <?php
-// Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Check authentication for all pages except login
 $current_page = basename($_SERVER['PHP_SELF']);
 if ($current_page !== 'login.php' && !isset($_SESSION['admin'])) {
     header("Location: login.php");

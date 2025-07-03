@@ -2,11 +2,9 @@
 include '../../db_connect.php';
 session_start();
 
-// Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Log connection status
 if (mysqli_connect_errno()) {
     error_log("Failed to connect to MySQL: " . mysqli_connect_error());
     echo json_encode(['success' => false, 'message' => 'Database connection failed']);
@@ -25,7 +23,6 @@ if (!isset($_GET['id'])) {
 
 $booking_id = intval($_GET['id']);
 
-// Log the query for debugging
 $query_string = "
     SELECT 
         b.*,

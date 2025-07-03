@@ -1,5 +1,4 @@
 <?php
-// Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -8,7 +7,6 @@ $username = "root";
 $password = "";
 $database = "resort_db";
 
-// Log connection attempt
 error_log("Attempting to connect to database: $database");
 
 $conn = mysqli_connect($host, $username, $password, $database);
@@ -20,6 +18,5 @@ if (!$conn) {
 
 error_log("Successfully connected to database: $database");
 
-// Set charset
 mysqli_set_charset($conn, "utf8mb4");
 ?>

@@ -7,10 +7,8 @@ if (!isset($_SESSION['admin'])) {
 }
 $page_title = "Audit Logs";
 
-// Add CSS file reference
 $extra_css = '<link href="assets/css/logs.css" rel="stylesheet">';
 
-// Get sorting parameters
 $sort_column = isset($_GET['sort']) ? $_GET['sort'] : 'timestamp';
 $sort_order = isset($_GET['order']) ? $_GET['order'] : 'DESC';
 $allowed_columns = ['timestamp', 'action', 'first_name', 'last_name'];
@@ -18,17 +16,14 @@ if (!in_array($sort_column, $allowed_columns)) {
     $sort_column = 'timestamp';
 }
 
-// Pagination parameters
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $per_page = 10;
 $offset = ($page - 1) * $per_page;
 
-// Get filter parameters
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $date_from = isset($_GET['date_from']) ? mysqli_real_escape_string($conn, $_GET['date_from']) : '';
 $date_to = isset($_GET['date_to']) ? mysqli_real_escape_string($conn, $_GET['date_to']) : '';
 
-// Build the query
 $base_query = "
     SELECT l.*, u.first_name, u.last_name 
     FROM audit_logs l 
@@ -49,16 +44,13 @@ if ($date_to) {
     $base_query .= " AND DATE(l.timestamp) <= '$date_to'";
 }
 
-// Get total filtered records
 $total_query = "SELECT COUNT(*) as count FROM (" . $base_query . ") as filtered_logs";
 $total_filtered = mysqli_fetch_assoc(mysqli_query($conn, $total_query))['count'];
 
-// Add sorting and pagination to the main query
 $query = $base_query . " ORDER BY $sort_column $sort_order LIMIT $offset, $per_page";
 
 $result = mysqli_query($conn, $query);
 
-// Get log statistics
 $totalLogs = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as count FROM audit_logs"))['count'];
 $todayLogs = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT COUNT(*) as count 
@@ -236,7 +228,6 @@ include 'includes/header.php';
                 $start_page = max(1, $page - 2);
                 $end_page = min($total_pages, $page + 2);
                 
-                // Previous button
                 if ($page > 1): ?>
                     <li class="page-item">
                         <a class="page-link bg-dark text-light border-secondary" href="?page=<?php echo ($page - 1); ?><?php echo $search ? "&search=$search" : ''; ?><?php echo $date_from ? "&date_from=$date_from" : ''; ?><?php echo $date_to ? "&date_to=$date_to" : ''; ?><?php echo $sort_column ? "&sort=$sort_column" : ''; ?><?php echo $sort_order ? "&order=$sort_order" : ''; ?>">
@@ -245,7 +236,6 @@ include 'includes/header.php';
                     </li>
                 <?php endif;
 
-                // Page numbers
                 for ($i = $start_page; $i <= $end_page; $i++): ?>
                     <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
                         <a class="page-link bg-dark text-light border-secondary <?php echo $i === $page ? 'bg-secondary' : ''; ?>" href="?page=<?php echo $i; ?><?php echo $search ? "&search=$search" : ''; ?><?php echo $date_from ? "&date_from=$date_from" : ''; ?><?php echo $date_to ? "&date_to=$date_to" : ''; ?><?php echo $sort_column ? "&sort=$sort_column" : ''; ?><?php echo $sort_order ? "&order=$sort_order" : ''; ?>">
@@ -254,7 +244,6 @@ include 'includes/header.php';
                     </li>
                 <?php endfor;
 
-                // Next button
                 if ($page < $total_pages): ?>
                     <li class="page-item">
                         <a class="page-link bg-dark text-light border-secondary" href="?page=<?php echo ($page + 1); ?><?php echo $search ? "&search=$search" : ''; ?><?php echo $date_from ? "&date_from=$date_from" : ''; ?><?php echo $date_to ? "&date_to=$date_to" : ''; ?><?php echo $sort_column ? "&sort=$sort_column" : ''; ?><?php echo $sort_order ? "&order=$sort_order" : ''; ?>">
@@ -269,7 +258,6 @@ include 'includes/header.php';
 </div>
 
 <style>
-/* Page Title */
 .page-title {
     position: relative;
     display: inline-block;
@@ -286,7 +274,6 @@ include 'includes/header.php';
     border-radius: 2px;
 }
 
-/* Table Styles */
 .table {
     --bs-table-color: #e9ecef;
     --bs-table-bg: #212529;
@@ -312,7 +299,6 @@ include 'includes/header.php';
     color: #adb5bd !important;
 }
 
-/* Form Controls */
 .form-control, .form-select {
     color: #e9ecef;
     background-color: #2b3035;
@@ -330,7 +316,6 @@ include 'includes/header.php';
     color: #6c757d;
 }
 
-/* Stats Card */
 .stats-card {
     background-color: #212529;
     border-radius: 0.5rem;
@@ -352,7 +337,6 @@ include 'includes/header.php';
     color: #adb5bd !important;
 }
 
-/* Button Styles */
 .btn-secondary {
     background-color: #495057;
     border-color: #495057;
@@ -369,12 +353,10 @@ include 'includes/header.php';
     color: #ffffff;
 }
 
-/* Input Group */
 .input-group-text {
     color: #e9ecef;
 }
 
-/* Pagination Styles */
 .pagination .page-link {
     padding: 0.375rem 0.75rem;
 }
